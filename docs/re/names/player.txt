@@ -1,0 +1,121 @@
+# you.c (0x41dbfe-0x422b3a) -- player module. Names used in docs/re/player.md.
+# Aliases proposed by other agents are noted; pick one name per address when merging.
+0041dbfe player_drop_all_powers       // end of death anim: every count above V(50+t) -> power_spawn_random_blank(t); skipped for net players
+0041dcb2 player_death_start           // (p, killer=EDX): refuses if invuln/dying; kill credit, held bomb deleted, scream 300 + sound id 340+anim, dying=1, walk=0 (alias player_kill)
+0041de04 player_kill_from_net         // (idx, anim=EDX, killer=EBX): net death message; anim forced 1 in Normal memory model
+0041de63 player_kill_attempt          // (p, killer=EDX): ignores net players and anim 5/6/7; death_anim=rand()%V105+1; ALWAYS returns 1 otherwise (was player_net_death)
+0041df4c player_cure_diseases         // disease_ms=disease_len=0, clear 14 flags (V122 test has empty branch)
+0041dfb6 player_give_disease          // (p, sound=EDX): d=rand()%9 (7 re-rolled in net), sound 1/3 3000+50d else 2300; d==7 swaps positions with a random other player
+0041e16a player_drop_excess           // (p, t=EDX): counts above V(50+t) back to the board (exclusive types once); losing last trigger -> bombs_untrigger (alias player_drop_exclusive_power)
+0041e21e player_pickup_power          // (p, pw=EDX): cure roll, effects, exclusivity, V550+ limits, AWESOME counter, sounds
+0041e5c3 cell_free_for_bomb           // (cx, cy=EDX): bomb_at()==NULL && map_get()==0 -- the movement/blocking test
+0041e61e you_getinput                 // keyboard / joystick / network input -> want_dir, btn1, btn2; multi-direction resolution
+0041eb13 player_drop_bomb             // (p, cx=EDX, cy=EBX, delay=ECX): type (trigger allowance/jelly), flame (short flame/goldflame), fuse (short fuze), bomb_create
+0041ec84 player_move_step             // pixel-step movement loop: lane alignment, corner assist, snap-back, warp/trampoline trigger, kick, flame/pickup tests
+0041f29b player_update                // full per-player frame: spawn, death anim, diseases, input, movement, animation+drawing, bomb actions (was player_update_anim)
+00420d4e goldman_sparkle_spawn        // gold bomberman twinkle: 5/6 chance per frame for V1010 s
+00420e39 goldman_sparkles_draw        // draws/advances the 100 sparkles (was goldman_init)
+00420f07 players_update_all           // per frame: freeze/true-colour timers, player_update x10, HUD "S:%d K:%d", counts
+00421198 players_clear_ctrl
+004211e7 players_clear_net_ctrl
+0042123f players_assign_default_ctrl
+00421319 you_free                     // atexit: frees input history and sparkle pool
+004213e0 you_init
+004214bc players_round_start          // per round: home from start table, counts from V50.., fuse, speed, goldman prize, cure; freeze 1000 ms, true colours 2000 ms
+00421793 players_match_start          // per match: kface off, score/kills = 0, shuffle start positions (random start option)
+004218e7 players_count_active         // slots with ctrl != 0
+00421947 players_present_count        // latched present count (0x4621d8)
+00421969 players_alive_count          // campaign 2 / teams alive / players alive (previous frame) (alias alive_count)
+004219b0 players_get_winner           // (buf): first live non-dying slot -> index or team, "Player %u"/"Team %u"/"undetermined"
+00421ac8 player_get_score
+00421b0f player_get_kills
+00421b56 player_award_points          // winner score += pts; copied to team-mates in team play
+00421c71 player_add_score             // (idx, pts=DX)
+00421cb5 player_at_cell               // (cx, cy=EDX): first alive && !dying slot in that cell (alias player_at)
+00421d3f player_at_cell_local         // same, excluding ctrl==4 (alias player_at_not_remote)
+00421dd2 player_get_ctrl              // (idx, &ctrl, &sub)
+00421e33 player_set_ctrl              // (idx, ctrl=DL, sub=BL)
+00421e80 player_cycle_ctrl            // controller setup: off -> AI -> key0 -> key1 -> joysticks -> off
+00422085 players_count_ctrl_conflicts
+00422154 players_remove_ctrl_conflicts
+0042223e players_count_sides          // players, or teams in team play
+004222e8 player_net_lost              // lost net player -> AI (option) or removed
+00422351 no_player_within             // (cx, cy, r): 0 if any of the 10 slots has Manhattan cell distance <= r
+004223e7 player_get_team
+00422437 player_set_team
+0042247a players_all_ai_or_off
+004224e2 players_save_ctrl            // before attract mode
+00422552 players_restore_ctrl         // after attract mode
+004225be player_set_score             // net
+00422602 player_set_kills             // net
+00422646 player_set_counts            // net: memcpy 15 powerup counts
+00422693 player_set_disease_state     // net: disease_ms, disease_len, 14 flags
+004226f6 kface_set_player             // net
+00422718 player_pick_random_enemy     // AI target selection
+0042288c player_remove_ai             // campaign: ctrl 1 -> 0
+004228c4 player_is_active             // ctrl != 0 && alive
+00422928 player_add_random_ai         // campaign: random free slot -> AI
+00422991 ghost_alloc                  // (bombs agent) net pending bomb action list
+00422a02 ghost_free
+00422a25 ghosts_age
+00422a9f ghost_find
+00422b0f bomb_type_name               // "regular", "trigger", "jelly"
+# globals
+00461bc4 g_players                    // OBJ[10], 0x98 bytes each (sizeof(OBJ) = 152)
+0045becc g_dir_dx                     // {0,1,0,-1}
+0045bedc g_dir_dy                     // {-1,0,1,0}
+0045bcc4 g_dir_names                  // {"north","east","south","west"}
+004621c8 g_input_history              // 10 ptrs -> 30 x {age_ms, dir}: ice control delay ring
+004621cc g_sparkles                   // 100 x {active, x, y, state}
+004621e0 g_round_freeze_ms            // input disabled while > 0 (1000 ms at round start)
+004621e8 g_true_colours_ms            // own colours instead of team colours while > 0 (2000 ms)
+004621e4 g_present_acc
+004621d8 g_present_count
+004621d0 g_alive_acc
+004621d4 g_alive_count
+004621b4 g_team_present               // [2]
+004621bc g_team_alive                 // [2]
+004621dc g_teams_alive_count
+0045be3c g_kface_player               // -1 = none
+0045be40 g_goldman_seq
+004621ec g_goldman_nstates
+004621f0 g_goldman_last_frame
+0046460c g_start_x                    // [10] start cells (negative = from right edge)
+0046465c g_start_y                    // [10]
+004645bc g_keys_a                     // {up,right,down,left,drop,action} scancodes, layout 0
+004645e4 g_keys_b                     // layout 1
+004a2ba0 g_key_down                   // keyboard state by scancode
+00464824 g_low_memory_model           // 1 = "Normal (<32MB)": V105 and V330 forced to 1
+00464938 g_attract_mode               // (assumed) attract/demo running
+0046497c g_win_by_kills               // option "Win Matches By Kill Total"; suicide penalty only when 0
+00464930 g_conveyor_speed             // 0..2 -> V190..V192
+0046499c g_level_index                // ice delay V450+level, regen V340+level
+00464980 g_diseases_curable           // V124
+0046498c g_disease_cure_chance        // max(V125,1)
+00464a78 g_diseases_multiply          // V123
+00464a74 g_diseases_recycle           // V122 (no effect)
+00464988 g_diseases_time_limited      // V121 (never read)
+004647e0 g_power_forbidden_random     // [13] scheme "forbidden from randoms"
+004642bc g_stat_move_steps
+004642b0 g_stat_deaths
+004642b4 g_stat_ai_deaths
+# helpers outside you.c used by the player code (owners: other docs)
+00426524 cell_to_px_x                 // 40 + 40*cx
+0042655f cell_to_px_y                 // 103 + 36*cy
+00426599 px_offset_x                  // [-20,19]
+004265eb px_offset_y                  // [-18,17]
+0042665c px_to_cell_x
+004266a3 px_to_cell_y
+00425fb9 map_get                      // 1 outside the field
+00413aed dir_name
+00410578 time_remaining_s             // 1001 = infinite
+004105b0 elapsed_round_s              // (assumed) used for the V1010 sparkle duration
+0040c06a net_mode_get                 // 0x460058
+00451e6d abs
+00415920 draw_sprite                  // display-list entry type 0 (x, y, frame)
+00415a9f draw_sprite_remap            // display-list entry type 3 (x, y, frame, colour)
+0041da5c ani_seq_nstates
+00429520 joy_read                     // (joy, &x, &y, &buttons)
+0042be0b debug_hook_nop               // empty, called at the start of every powerup pickup
+0040179f campaign_pre_ai_hook         // clears 0x4646c0 before ai_think
+00403a9c roulette_prize               // goldman roulette powerup index (0x45e02c)

@@ -1,0 +1,77 @@
+# ai-original: search.c (0x40902a-0x40a0fd), ai.c (0x40a0fe-0x40be01), aliens.c, lost-net-player revert
+# Shared helpers (map_get, bomb_at, powerup_at, flame_at, player_at, danger_get/danger_raise, bombs_count_owned,
+# bomb_cell_free_ai, player_update, players_update_all) are named in bombs.txt / flames-map-powerups.txt.
+# NOTE: names.txt has 00424d37/00424dfe swapped (maybe_influence_set is the GETTER danger_get, maybe_influence_get is danger_raise).
+# Functions marked (no Ghidra fn) are not defined in the Ghidra project; create them before applying names.
+0040902a search_visited_set          // (x,y,v=EBX): g_search_visited[x*20+y]=v when 0<=x<W && 0<=y<H
+00409083 search_visited_get          // (x,y): g_search_visited[x*20+y]; returns 1 when out of bounds
+004090e7 ai_blocked_rebuild          // once per frame (g_frame_counter change): blocked = map_get!=0 || bomb_at
+004091a0 search_visited_reset        // memcpy(g_search_visited, g_ai_blocked, 0x640)
+004091c9 search_walker_alloc         // first walker with active==0 (memset 0x18), NULL when all 100 in use
+00409231 search_deinit               // (no Ghidra fn) free walker pool; atexit
+00409264 search_init                 // calloc(100 walkers x 0x18); registers search_deinit
+004092a1 search_path                 // (sx,sy,tx,ty,maxIter,*dir1,*iters,*maxWalkers): walker flood to target; dir1 = first step+1, 0 = none
+0040970b search_safest               // (sx,sy,maxIter,*dir1,*iters,*maxW,*bx,*by): flood until danger==0, else lowest-danger cell seen
+00409c1f search_powerup              // (sx,sy,maxIter,*dir1,*iters,*maxW,*power): flood until powerup_at; BUG tests walker cell in side/forward checks
+0040a0c2 ai_deinit                   // (no Ghidra fn) free g_ai_states; atexit
+0040a0fe ai_init                     // game_init: calloc 10 x 0x44 AI states + search_init
+0040a140 ai_round_reset              // per round (from 0x410f81): memset states 0x2a8; personality = rand()%max(1,V900) x10
+0040a1c6 ai_think                    // (playerIndex=EAX, player=EDX): personality-0 strategy list until one returns non-zero
+0040a4f7 ai_dead_reroll_rotation     // UNUSED: g_ai_rot = rand()%4 guarded by time()
+0040a542 ai_dead_cell_free           // (no Ghidra fn) UNUSED: !bomb_at && map_get==0
+0040a59d ai_cell_free_and_safe       // !bomb_at && map_get==0 && !flame_at && danger_get==0
+0040a628 ai_dead_strat_random_step   // (no Ghidra fn) UNUSED strategy, mode 1
+0040a76e ai_cancel_dir_if_flame      // flame in next cell along dir_in -> dir_in=-1, A.mode=0, A.mode_dir=-1
+0040a81f ai_strat_wander             // (no Ghidra fn) priority 8: straight runs, 1/25 turn, random dir when blocked
+0040a994 ai_strat_dead_random_run    // (no Ghidra fn) UNUSED strategy, mode 2
+0040abed ai_strat_attack             // (no Ghidra fn) priority 5: enemy in own/adjacent cell, >=3 from home -> drop bomb 1/5
+0040ad8d ai_strat_blast_bricks       // (no Ghidra fn) priority 4: brick adjacent -> drop bomb 1/V915
+0040af20 ai_dead_bomb_in_line_dir    // UNUSED (only called by ai_strat_dead_dodge)
+0040b046 ai_dead_most_open_dir       // UNUSED (only called by ai_strat_dead_dodge)
+0040b20f ai_strat_flee               // (no Ghidra fn) priority 3: danger avoidance; trigger detonation when safe (1/10, no punch)
+0040b594 ai_strat_dead_dodge         // (no Ghidra fn) UNUSED strategy, modes 10/11
+0040b8c2 ai_strat_chase_player       // (no Ghidra fn) priority 7: 1/50 start, >=500 ms then 1/50 stop
+0040baf5 ai_strat_get_powerup        // (no Ghidra fn) priority 6: 1/50 search radius V920; BUG resets +0x0c instead of +0x1c
+0040bd44 ai_strat_grab_throw         // (no Ghidra fn) priority 1: release held bomb / pick up own bomb (1/2)
+0040be02 ai_strat_punch              // (no Ghidra fn) priority 2: 1/4: punch any adjacent bomb
+00422718 ai_pick_chase_target        // random start slot; humans (controller 2..4) first, then anyone; skips self/teammates/dead
+0040179f campaign_ai_heartbeat       // g_campaign_idle_ms = 0; called before every ai_think
+004222e8 player_net_lost             // option on + controller 4 + server -> controller 1 (AI); otherwise slot removed
+0040de45 net_node_players_lost       // (no Ghidra fn) (node): player_net_lost(i) for each slot owned by the removed node
+# campaign enemies (aliens.c) and campaign glue
+004017fa alien_can_enter             // !bomb_at && (ghost ? map_get!=1 : map_get==0); type from g_alien_cur_type
+00401886 aliens_init                 // calloc 100 x 0x98
+004018c3 aliens_clear
+00401914 alien_alloc
+00401994 aliens_reset                // clear + g_aliens_alive=1 + g_campaign_idle_ms=0
+004019c2 alien_spawn                 // 200 tries random cell with map_get!=1 and no player slot within Manhattan 3
+00401aae aliens_spawn_rovers         // (count, speed): type 1
+00401b05 aliens_spawn_ghosts         // (count, speed): type 2
+00401b5c alien_update                // (was aliens_create) move 1px steps, turn at centres (1/V1200), die in flames, kill non-AI players
+00401f76 aliens_update_all           // sets g_alien_cur_type per alien, counts g_aliens_alive
+004016da campaign_update             // aliens + level won/failed checks (time<2s, no humans, no aliens + 2 s AI idle)
+0040151b campaign_level_setup        // clear AI slots, add N AIs, spawn ghosts then rovers
+00422928 campaign_add_ai_player      // random empty slot (rand()%10, 100 tries) -> controller 1
+0042288c player_slot_clear_ai        // controller 1 -> 0
+# globals
+0045ba78 g_ai_strategies_p0          // {bd44,be02,b20f,ad8d,abed,baf5,b8c2,a81f,NULL}
+0045ba9c g_ai_attack_dy              // {0,-1,0,1,0}
+0045bab0 g_ai_attack_dx              // {-1,0,0,0,1}
+0045becc g_dir_dx                    // {0,1,0,-1}  dir 0=N 1=E 2=S 3=W
+0045bedc g_dir_dy                    // {-1,0,1,0}
+0045e0e4 g_search_visited            // int[20][20], index x*20+y
+0045e724 g_ai_blocked                // int[20][20], index x*20+y
+0045ed64 g_ai_rot                    // dead code only
+0045ed68 g_search_walkers            // ptr: walker[100] {active,x,y,first,dir,state} 0x18 each
+0045ed6c g_ai_states                 // ptr: ai_state[10] 0x44 each (see ai-original.md 9.1)
+0045ed70 g_ai_cur                    // ai_state of the player currently thinking
+0045ed74 g_ai_blocked_tick           // frame counter of last ai_blocked_rebuild
+0045ed78 g_ai_rot_time               // dead code only
+00464928 g_opt_lost_net_revert_ai    // options.ini lost_net_revert_ai
+0045e01c g_alien_cur_type
+0045e020 g_aliens                    // ptr: alien[100] 0x98 each
+00464820 g_aliens_alive
+004646c0 g_campaign_idle_ms          // reset by every ai_think; level won when no aliens and > 2000 ms
+004621e0 g_round_start_freeze_ms     // V30*REF (1000 ms) at round start; no input/AI while > 0
+004621f4 g_danger                    // ptr: int[W*H], index x + W*y
+00462204 g_danger_bytes              // W*4*H (used, wrongly, as an index bound)

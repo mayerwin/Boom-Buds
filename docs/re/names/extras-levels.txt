@@ -1,0 +1,100 @@
+# extras-levels: proposed names (extra.c, scheme.c, level start, campaign.c, aliens.c, editor helpers)
+# format: <hexaddr> <name> // comment
+# Names shared with other docs are kept identical (extra_at, extras_remove_for_hurry, scheme_cell, scheme_set_cell).
+#
+# ---- extra.c ----
+00404d16 extra_init                    // alloc 100 x 0x98 extra slots (g_extras), register deinit 0x404cda
+00404d53 extras_reset                  // loaded=0, count=0, memset all 100 slots
+00404db8 extra_parse_dir               // tolower(s[0]): 'n'->0,'e'->1,'s'->2,'w'->3, else -1
+00404e3c extra_alloc                   // next slot (count<100) memset 0x98, else NULL
+00404e99 extra_load_res                // parse data/res/extra<level>.res: -A dir,x,y / -W gfx,id,x,y,link / -C dir,x,y / -T x,y|H
+0040551f extras_level_load             // per game: reset; client: wait for server's extras; else extra_load_res + loaded=1
+00405654 extra_at                      // extra_at(x=EAX,y=EDX): first slot with active!=0 at cell, else NULL
+004056ca extras_update_draw            // (was extra_create_objects) per frame: warp knock-out (1st frame), queue extra sprites
+00405a81 warp_find_dest                // warp_find_dest(w, &x=EDX, &y=EBX): first other active warp with id==w.linkto, else own cell
+00405b3a extra_net_set                 // client: store one received extra (idx,x,y,active,type,dir/id,link,gfx)
+00405bba extras_net_send               // server: send 10 extras from min(idx,90) (only while g_extras_loaded)
+00405ced extras_net_send_done          // g_extras_loaded = 0 after the server finished sending
+00405d0c extras_remove_for_hurry       // enclosement start: active=0 for warps (1) and trampolines (3)
+00405d7e extras_net_clear_from         // client: active=0 for slots idx..99 (end of server list)
+# ---- scheme.c ----
+00403b73 scheme_init                   // alloc 11 row strings (16 bytes each) + 10 start structs (0x78 bytes)
+00403c16 scheme_save                   // editor: write data/schemes/<name>.sch ("wt"), -V,-N,-B,-R x11,-S x10,-P x13 (not in decompilation)
+00403eee scheme_parse                  // scheme_parse(filename): defaults, read -V/-N/-B/-R/-S/-P, teams, bornwith->V50+, override->V400+
+004046cc scheme_load                   // once per match: client waits for pregame values; else parse; server sends 79 VALUELST values
+00404833 scheme_parse_current          // scheme_parse(g_scheme_filename) (campaign stage start)
+00404852 scheme_cell                   // (x,y): out of bounds->1, ':'->2, '#'->1, else 0
+004048eb scheme_set_cell               // editor: (x,y,t) 1->'#', 2->':', else '.'
+004049c0 scheme_reset_defaults         // (was scheme_basic_grid) name "Basic grid pattern", density 90, odd rows ":#:#...", starts V600..619, team=i&1
+00404be9 scheme_read_name              // chooser: first "-N," line of a file (keeps commas), default M727 "No Scheme Name"
+# ---- level start / per-level resources ----
+00410b6e level_start                   // (was maybe_level_load) per game: pick level (levelno / random V1150+L), map, field, players, powerups, extras, music
+004165fc graf_load_field_bitmap        // load data/res/field<L>.pcx (name "field%u.plt"), remap palette, must be screen size
+0041bda4 file_load_image               // .pcx -> pcx_load, other extensions -> optional hook 0x45be34 (never set)
+0041bbbd image_remap_palette           // remap PCX palette entries 1..255 into the game palette (15-bit RGB lookup 0x495390)
+00428bb1 audio_cache_flush_check       // -> 0x428aef: flush/reload sound cache every V7 seconds
+00413aed dir_name                      // {"north","east","south","west"}[d&3]
+# ---- you.c parts used by extras (cross-ref player doc) ----
+0041ec84 player_move_step              // per-pixel movement; along==-1: warp (special 6, sound 1330) / trampoline (special 5, sound 350)
+0041f29b player_update                 // ice delay (V450+L, non-AI), conveyor push/speed, special 5 bounce, 6/7 warp spin
+00422437 player_set_team               // player[i]+0x54 = team (from scheme starts)
+0042288c player_slot_ai_off            // campaign: AI slot -> OFF
+00422928 player_slot_add_random_ai     // campaign: random OFF slot (rand()%10, 100 tries) -> AI
+# ---- campaign.c ----
+00401010 campaign_free                 // free stage array
+00401066 campaign_register_deinit
+00401085 campaign_load                 // parse *.cam: "-C,name,level,scheme,rovers,rspeed,ghosts,gspeed,AIs,AIdiff" (9 commas), 0x70-byte stages
+00401312 campaign_restart              // match setup: if campaign mode, stage = -1 (first level_start makes it 0)
+0040133f campaign_next_stage           // campaign only: valuelst_load, stage++, scheme+level from stage, scheme_parse, random start swaps; end -> state 10
+0040151b campaign_stage_setup          // AI slots off, add stage AIs, reset aliens, spawn ghosts (type 2) and rovers (type 1)
+004015c6 campaign_select_file          // after 'C' x5 on player setup: choose data/res/*.cam, campaign_load, g_campaign_mode=1
+004016da campaign_update               // per frame (campaign): aliens update + stage win/lose flags (DAT_00464894)
+0040179f campaign_reset_clear_timer    // DAT_004646c0 = 0
+# ---- aliens.c (campaign ghosts / rovers) ----
+004017fa alien_can_enter               // no bomb && (ghost: map!=1 | rover: map==0)
+00401886 aliens_init                   // alloc 100 x 0x98
+004018c3 aliens_clear
+00401914 alien_alloc                   // first free slot, memset
+0040197f aliens_nop                    // empty
+00401994 aliens_reset                  // clear + alive count = 1 + timer 0
+004019c2 alien_spawn                   // random cell not solid, no player within distance 3 (200 tries)
+00401aae aliens_spawn_rovers           // (count, speed=EDX) type 1
+00401b05 aliens_spawn_ghosts           // (count, speed=EDX) type 2
+00401b5c alien_update                  // (was aliens_create) move/turn (V1200), flame kill (+V1310/V1320 pts), kill non-AI players, draw "ghost|rover %s"
+00401f76 aliens_update_all
+# ---- editor (was "tiles.c?" / "teamring?") ----
+00402206 editor_tile_frame             // (was tiles_load_level_seqs) "tile %d blank|solid|brick" with g_editor_tileset
+004022a1 editor_draw_grid
+0040234e editor_draw_title             // M700 "Atomic Bomberman Level Editor"
+004023a2 editor_edit_powerup           // bornwith / forbidden / override prompts (M762..M768)
+004028d2 editor_edit_scheme            // (was team_ring_draw) scheme editing screen (draws "teamring%u" at starts)
+# ---- globals ----
+0045e0a8 g_extras                      // OBJ[100] extras: +0 active, +4 type, +1c x, +20 y, +2c dir/id, +2e link, +30 anim, +34 warp gfx, +92 knocked
+0045e0ac g_extras_loaded
+0045e0b0 g_extras_count
+0045bcc4 g_dir_names                   // char*[4] "north","east","south","west"
+00464998 g_opt_levelno                 // option levelno, -1 = random each game
+0046499c g_level                       // current level 0..10
+00464930 g_opt_conveyor_speed          // 0..2 -> V190..V192
+004648c4 g_scheme_filename             // option schemefilename (default "BASIC.SCH")
+0045e040 g_scheme_rows                 // char*[11]
+00464700 g_scheme_name
+004647a0 g_scheme_density              // default 90
+004647a4 g_scheme_bornwith             // int[13]
+00464764 g_scheme_has_override         // int[13]
+004646c4 g_scheme_override             // int[13]
+004647e0 g_scheme_forbidden            // int[13]
+0046481c g_scheme_starts               // 10 x {x,y,team}
+0046460c g_start_x                     // int[10] used for spawning (shuffled by random_start)
+0046465c g_start_y                     // int[10]
+0045e044 g_scheme_name_tmp             // scheme_read_name result buffer
+0045b7b8 g_editor_tileset              // editor tile set number (0)
+0045b7d4 g_net_pregame_value_ids       // int[79] VALUELST ids sent by a server at match start
+0045e010 g_campaign_stages             // 0x70-byte stages
+0045e014 g_campaign_count
+0045e018 g_campaign_loaded
+0045e01c g_alien_cur_type              // type of the alien being updated (1 rover, 2 ghost)
+0045e020 g_aliens                      // OBJ[100]
+0046489c g_campaign_mode
+004648b0 g_campaign_stage
+00464820 g_aliens_alive

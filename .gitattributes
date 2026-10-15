@@ -1,0 +1,12 @@
+# Line endings: LF in the repository, Windows batch files keep CRLF everywhere.
+* text=auto
+*.bat text eol=crlf
+
+# Binary game data, pictures and fonts
+*.png binary
+*.webp binary
+*.ogg binary
+*.gz binary
+*.bin binary
+*.pal binary
+*.woff2 binary

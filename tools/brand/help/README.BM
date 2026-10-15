@@ -1,0 +1,79 @@
+**************************************************************
+Boom Buds Readme 
+**************************************************************
+
+Table of contents
+     1. System Requirements
+     2. Playing the game
+     3. Playing on your network
+     4. Phones and tablets
+     5. Trouble Shooting
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+1. SYSTEM REQUIREMENTS
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Boom Buds runs in your web browser:
+  - a recent Chrome, Edge, Firefox or Safari
+  - WebGL 2 and Web Audio
+  - a keyboard, a gamepad or a touch screen
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+2. Playing the game
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Open the Boom Buds page and press <ENTER>.  Use the
+arrow keys and <ENTER> in the menus, <ESC> goes back.
+
+Default keys:
+  KEY 0:  arrows to move, <SPACE> drop bomb,
+          <ENTER> action button.
+  KEY 1:  R G F D to move, S drop bomb,
+          A action button.
+Keys can be changed in Options, Define keyboard layouts.
+Gamepads show up as JOY 0, JOY 1... once a button
+has been pressed.
+
+The browser only plays sound after your first key
+press or tap.
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+3. Playing on your network
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Network games need the Boom Buds LAN server running on
+one computer of the network ("npm run lan").  Every
+player opens the address it prints in a browser.
+
+One player chooses "Start Network Game", the others
+"Join Network Game" and pick that game from the list.
+Up to five computers and ten players can play, and
+each computer can have its own keyboard, gamepad and
+computer players.  See NETWORK.BM.
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+4. Phones and tablets
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Hold the device in landscape.  The stick moves, A is
+the drop bomb button (<ENTER> in menus) and B the
+action button (<ESC> in menus).  In menus you can also
+tap an entry to select it and tap it again to use it.
+On a phone the touch controls play KEY 0.
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+5. Trouble Shooting
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+* No sound:
+	Press a key or tap the screen once; browsers
+	start sound only after the first input.
+
+* Network game not listed:
+	All computers must open the game from the LAN
+	server's address, and the browser must allow
+	WebRTC connections between them.
+
+* The game stops when you click another window:
+	Like the original, a local game pauses while
+	its window is not active.

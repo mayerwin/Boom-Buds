@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+  <title>Boom Buds privacy policy</title>
+  <style>
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; line-height: 1.65; }
+    body { max-width: 48rem; margin: 0 auto; padding: 3rem 1.5rem 5rem; }
+    h1, h2 { line-height: 1.2; } h1 { font-size: 2.3rem; } h2 { margin-top: 2rem; font-size: 1.4rem; }
+    a { color: #1675b9; } @media (prefers-color-scheme: dark) { a { color: #76c5ff; } }
+    .date { opacity: .7; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Boom Buds<br>Privacy policy</h1>
+    <p class="date">Effective date: October 14, 2026</p>
+    <p>This policy covers Boom Buds on the web (mayerwin.github.io/Boom-Buds) and the Boom Buds app for Android TV and Google TV, in its Google Play and sideload editions.</p>
+
+    <h2>In short</h2>
+    <p>Boom Buds has no accounts, advertising, analytics, tracking or purchases, and the developer runs no server that receives your data. Your settings stay on your device. In network games, the game talks directly to the other players' devices.</p>
+
+    <h2>Information stored on your device</h2>
+    <p>The game saves your settings on the device where you play: options, controls, the players and computer players of your last game, their colours and teams, your player name for network games, arena lists and the schemes you make. Nothing of this leaves the device, except as described for network games below.</p>
+    <p>Button presses and stick movements control the game on the device. The TV app does not ask for access to your contacts, location, microphone, camera or files, and it does not scan for Bluetooth devices: pairing controllers is done in the TV's settings.</p>
+
+    <h2>Network games</h2>
+    <p>Local games (everyone on one device) send nothing over the internet. When you open Network Game or join a game:</p>
+    <ul>
+      <li><b>Finding each other.</b> To connect, devices exchange a short handshake through free public message relays (MQTT brokers run by EMQX, HiveMQ and the Eclipse Mosquitto project). The handshake is encrypted with a key made from the room code, so the relays cannot read it. To list the games open on your own network, a host announces its game (the host's player name, the room code, the number of players and the arena) on a relay channel derived from the network's public address.</li>
+      <li><b>Connection addresses.</b> Like any video call, the devices learn each other's IP addresses to connect directly, with the help of public STUN servers (Cloudflare and Google) that tell a device its public address.</li>
+      <li><b>During the game.</b> Your player name, your bomber's look, your chat messages and your moves go directly and encrypted (WebRTC) to the other players of that game, who see them. They are not sent to the developer.</li>
+    </ul>
+    <p>These relays and servers are operated by third parties under their own policies; Boom Buds sends them only what is described above, and keeps nothing.</p>
+
+    <h2>Retention and deletion</h2>
+    <p>Saved settings remain until you remove them. On the web, clear the site's data in your browser. On the TV, use Settings &gt; Apps &gt; Boom Buds &gt; Clear data, or uninstall the app (the Play and sideload editions keep separate storage). The TV app does not use Android cloud backup.</p>
+
+    <h2>Children</h2>
+    <p>Boom Buds is not directed at children under 13 and collects no information about them. Network games show the player names and chat messages that players type to the other players of the game.</p>
+
+    <h2>Platform services</h2>
+    <p>Your browser, Android, Google TV, Google Play and GitHub Pages (which hosts the website) work independently of the game and may process information under their own policies, for example when you download the app or open the website.</p>
+
+    <h2>Changes</h2>
+    <p>If the game's data practices change, this policy will be updated with a new effective date.</p>
+
+    <h2>Contact</h2>
+    <p>For privacy questions, use the developer contact on the app's Google Play page, or the <a href="https://github.com/mayerwin/Boom-Buds/issues">Boom Buds repository</a> (please do not post personal information in public issues).</p>
+  </main>
+</body>
+</html>

@@ -1,0 +1,158 @@
+# ---- tunes.c (Kurt Dekker's game-side audio layer), ~0x427138..0x429520 ----
+# (0x42708d..0x427137 are flame.c helpers despite the module guess; 0x429520+ is joy.c)
+00427138 sndcache_hitlog_add          // hitlog_add(hit): 100-entry ring buffer DAT_00462ed0[DAT_0046308c] of cache hit(1)/miss(0)
+0042717d sndcache_hitlog_sum          // sum of the 100 hit flags -> "Audio cache hits: %u%%" (msg 420, debug screen)
+004271cc tunes_mem_malloc             // malloc hook handed to the sound library (tunes.c line 59)
+004271fe tunes_mem_realloc            // realloc hook (line 60)
+00427234 tunes_mem_free               // free hook (line 61)
+00427260 sound_ini_parse              // opens "sound.ini", splits each line at '=', ignores everything, always returns -1 (vestigial)
+004272dd sound_lib_init               // (was sound_ini_load) if(enabled){soundSetMemoryProcs; soundInit(sound_ini_parse(),16,0x8000,0x8000,22050)}
+00427342 tunes_stop                   // soundDelete(g_tune); g_tune=0  (hard cut, no fade)
+00427374 sfx_done_callback            // sound-lib callback: if(event==1 && g_sfx_playing>0) g_sfx_playing--
+004273a4 tunes_play                   // tunes_play(path): stop old tune, soundAllocate(2 STREAMING,0x28 16bit|LOOP), stereo, soundLoad, loops=0xffff, soundPlay
+0042741e tunes_play_id                // tunes_play_id(id): tunes_play(datafile_path(name(id) with ext ".snd"))  (HD, falls back to CD)
+004274ab tunes_play_id_hds            // same but ".hds" = <hdhome>/data/sound/NAME.rss (staged/HD copy)
+00427538 tunes_play_random_in_group   // UNUSED: tunes_play of base+rand()%n (n = consecutive defined ids)
+004275e3 sndcache_evict_lru           // evict_lru(n): free the n least-recently-used cache entries (lastUsed < clock)
+004276bc sndcache_get                 // sndcache_get(path): soundContinueAll; clock++; find or load whole .rss into a 0x70-byte slot; NULL on fopen failure
+00427859 sfx_play_file                // sfx_play_file(path): if(V8 < g_sfx_playing) drop; cached one-shot: soundAllocate(5,8), stereo, soundSetData, callback, g_sfx_playing++, soundPlay
+004278f2 sound_play_id                // sound_play_id(id): exact id (no group); then g_snd_playcount[id] = g_frame_counter (!)
+00427961 sound_play_group             // random least-played id among consecutive defined ids from base; playcount++ even if dropped
+00427abb sound_play_group_ratelimited  // only if frame < last[id] || frame >= last[id]+3 (frames); used only for 135 (jelly bounce)
+00427b36 voice_stream_play_file       // soundAllocate(6 STREAMING|FIRE_AND_FORGET, 8), stereo, soundLoad, loops=0, soundPlay; NOT counted/limited/cached
+00427b8c voice_stream_play_id         // UNUSED: streamed exact id; playcount[id] = frame counter
+00427bfb voice_stream_play_group      // like sound_play_group but streamed (used for 2800 intro, 1700 draw, 2000 winner, 2600 quit)
+00427d55 sndcache_flush               // free every cache entry
+00427de5 soundlst_free                // free names/playcount/lastframe arrays
+00427ebc sound_shutdown               // deinit hook: delete tune, flush cache, free table+arrays, soundClose
+00427f1b sound_cull_series            // cull(base[EAX], last[EDX], keep[EBX]): compact defined ids in [base,last] to base.., then randomly delete until keep remain
+0042814b soundlst_load                // parse SOUNDLST.RES (2 passes), names[id]=strdup(NAME".snd"), then the 16 sound_cull_series calls
+0042876b sndcache_preload_group       // preload consecutive defined ids from base into the cache
+004287b9 sndcache_precache_selective  // V3: preload groups 200,400,700,1400,2300 ("Loading sound..." bar)
+0042884b sndcache_precache_all        // V4: preload every sound file < 300000 bytes
+0042896e sound_init                   // V5/V6 clamps, CFG soundonoff, sound_lib_init, cache alloc, soundlst_load, ticker soundUpdate, deinit hook, V4/V3 precache
+00428aef sound_periodic_flush         // if V7 && time() > lastFlush+V7: "Flushing audio cache...", flush, soundlst_load (re-cull!), precache
+00428b97 sound_periodic_flush_setup   // wrapper, called at entry of the player-setup screen (FUN_00410f81)
+00428bb1 sound_periodic_flush_round   // wrapper, called by maybe_level_load in non-network games
+00428bcb sndcache_bytes_used          // returns g_sndcache_bytes
+00428bed stageup_alloc_entry          // first free entry of g_stageup_table (100 x 32 bytes), zeroed
+00428c54 stageup_find_oldest          // used entry with the smallest time
+00428ce3 tunes_sound_stageup          // minimum install: copy <cd>/data/sound/X.rss -> <hd>/data/sound/X.rss (<=27,000,000 bytes staged, LRU delete)
+004293e5 tunes_play_wave_tune         // play SOUNDLST 1100+wave (stage up if on CD & local & fixed level) else 1120 "generic"
+
+# ---- tunes.c globals ----
+00462250 g_stageup_table              // 100 x {int used; char name[20]; time_t time; int size} (32 bytes)
+00462ed0 g_sndcache_hitlog            // int[100]
+00463060 g_stageup_scanned            // first-call flag of tunes_sound_stageup
+00463064 g_tune                       // Sound* of the current music (only one at a time)
+00463068 g_sndcache_budget            // bytes, clamp(V6, 500000, 20000000)
+0046306c g_sndcache                   // SndCacheEntry[g_sndcache_slots], 0x70 bytes each {char path[100]; void* data@0x64; int size@0x68; int lastUsed@0x6c}
+00463070 g_sndcache_slots             // clamp(V5, 10, 200)
+00463074 g_sndcache_clock             // ++ on every sndcache_get
+00463078 g_sndcache_bytes             // total bytes held by the cache
+0046307c g_sfx_playing                // number of cached one-shot SFX currently playing (limit test: drop if V8 < count)
+00463080 g_snd_nids                   // highest SOUNDLST id + 1
+00463084 g_snd_last_flush             // time() of last soundlst load/flush
+00463088 g_snd_playcount              // int[g_snd_nids], least-played selection
+0046308c g_sndcache_hitlog_idx
+00463090 g_snd_lastframe              // int[g_snd_nids], used by sound_play_group_ratelimited
+00463094 g_snd_names                  // char*[g_snd_nids] ("name.snd"), NULL = undefined id
+00463098 g_sound_onoff                // CFG.INI soundonoff
+00462244 g_slam_sound_variant         // rand()%3 chosen once per round when the closing-in starts -> sound_play_id(140+v)
+00464984 g_hurry_played               // per-round flag, reset in maybe_level_load
+00464994 g_frame_counter              // ++ once per game frame (0x42a214); forced to 0x40 by FUN_00429ff1 (pcx/palette load)
+004648c0 g_disable_game_music         // options.ini disable_game_music (msg 263)
+00464824 g_smallmemory                // options.ini smallmemory (Normal memory model): cull keep=1, V7=V9, V105=1, V3=1, V4=0
+00460260 g_kwd_devmode                // atoi(getenv("KWD")): skips logos and the quit voice; writes unrefsnd.lst
+
+# ---- sound.c = Interplay Win95 DirectSound library (same code as Fallout 1's sound.c) ----
+004187ed soundSetMemoryProcs          // (malloc, realloc, free) -> 0045bd80/84/88
+004189c3 soundError                   // soundError(err|-1) -> "sound.c: ..." string
+00418a10 refreshSoundBuffers          // streaming refill of consumed 32 KiB chunks, loop/EOF handling
+00418ff7 soundInit                    // soundInit(a1, numBuffers, flags, dataSize, rate): DSSCL_EXCLUSIVE, primary 16bit/stereo per caps @ rate
+00419512 soundClose
+004195bc soundAllocate                // soundAllocate(type, soundFlags): new Sound (0x94) + WAVEFORMATEX (mono, 8/16 bit, gSampleRate)
+0041986d soundLoad                    // open file, fileSize, preloadBuffers (streams: min(fileSize rounded up to 32K, 512K))
+00419a94 soundRewind
+00419b44 soundSetDataInternal         // Lock whole buffer, memcpy, Unlock (Restore on DSERR_BUFFERLOST)
+00419c66 soundSetData                 // soundSetData(sound, buf, size): CreateSoundBuffer(size) if needed, copy
+00419d88 soundPlay                    // rewind if done, soundSetVolume(sound->volume), Play(DSBPLAY_LOOPING iff flag 0x20)
+00419ec9 soundStop
+00419f92 soundDelete
+0041a024 soundContinue                // per-sound service: refill streams; when finished: callback(userData,1), delete if FIRE_AND_FORGET
+0041a1a1 soundPlaying
+0041a1e2 soundDone
+0041a264 soundPaused
+0041a2a5 soundFlags
+0041a2e9 soundType
+0041a32d soundSetUserData             // maybe_: writes sound+0x80
+0041a369 soundGetUserData             // maybe_: reads sound+0x80
+0041a3c9 soundSetLooping              // soundSetLooping(sound, loops[DX]): 0 clears flag 0x20
+0041a454 soundVolumeHMItoDirectSound  // -1000*log2(32767/vol) hundredths of dB, clamped
+0041a50d soundSetVolume               // DS volume = HMItoDS(master*vol/0x7fff)  (never called by game code except via soundPlay with 0x7fff)
+0041a614 soundGetVolume
+0041a729 soundSetPan                  // UNUSED by the game
+0041a84d soundSetCallback             // (sound, cb[EDX], userData[EBX]); returns 0x16 even on success (library quirk)
+0041a896 soundSetChannels             // channels==3 -> nChannels=2 (stereo); returns 0x16 (quirk)
+0041a9ce soundPause
+0041aab8 soundUnpause
+0041aba1 soundSetFileIO               // maybe_
+0041ac7a soundDeleteInternal          // stop (+callback 1 if playing), Release buffer, free data/wfx, unlink, free
+0041af93 soundSetMasterVolume         // only called once: soundInit(...) -> 0x7fff
+0041b03b soundSetTimer                // timeSetEvent(ms, 10, proc, TIME_PERIODIC)
+0041b0a8 soundRemoveTimer
+0041b0df soundGetPosition             // maybe_
+0041b1a3 soundSetPosition             // maybe_
+0041b3e0 soundRemoveFade
+0041b47a soundRemoveFadeBySound
+0041b4ca soundFadeTick                // fade timer proc (unused path)
+0041b618 soundInternalFade            // (sound, ms, targetVol, pauseAtEnd); 40 ms timer; UNUSED by the game
+0041b80f soundFade                    // UNUSED by the game (only soundPauseFadeAll)
+0041b844 soundAddToList
+0041b8c4 soundDeleteAll
+0041b919 soundContinueAll
+0041b961 soundUpdate                  // = soundContinueAll; GNW background ticker + called twice per game frame + every sndcache_get
+0041b97b soundSetDefaultFileIO
+0041ba31 soundPauseAll                // UNUSED
+0041ba99 soundPauseFadeAll            // UNUSED
+0041bb0b soundUnpauseAll              // UNUSED
+# 0x41bb79.. 0x41be63 are NOT sound code (image-loader hooks / palette remap, datafile.c/pcx)
+
+# ---- sound.c globals ----
+0045bd70 gFadeList
+0045bd74 gFadeFreeList
+0045bd78 gFadeTimerId
+0045bd80 gSoundMallocProc
+0045bd84 gSoundReallocProc
+0045bd88 gSoundFreeProc
+0045bd8c gSoundDefaultFileIO          // 8 entries
+0045bdac gSoundFileNameMangler
+0045bdb0 gSoundErrorDescriptions      // 33 strings
+00461798 gSoundMasterVolume           // 0x7fff
+0046179c gSoundsPlaying
+004617a0 gSoundDataSize               // 0x8000 (one stream chunk)
+004617a4 gSoundLastError
+004617a8 gSoundNumBuffers             // 16 (chunks per stream ring)
+004617ac gDirectSoundPrimaryBuffer
+004617b0 gSoundSampleRate             // 22050
+004617b4 gSoundDeviceInit
+004617b8 gSoundInitialized
+004617bc gSoundListHead
+004617c0 gDirectSound
+
+# ---- game functions that trigger sounds (named for this topic; other docs may refine) ----
+0042a191 game_frame                   // per-frame ticker (registered during a match); frame counter++, 2x soundUpdate, hurry voice 2700
+0041dcb2 player_kill                  // scream 300 + sound_play_id(340+deathAnim)
+0041dfb6 player_give_disease          // disease k=rand()%9 (re-roll 7 in net games); if(EDX) 1/3: 3000+50k else 2300
+0041e21e player_pickup_powerup        // 400 / 135 (jelly) / 1400 (AWESOME) / disease
+0041ec84 player_move_step             // warp 1330, trampoline 350
+0042464b bomb_kick                    // 120
+00424a50 player_punch                 // 150 if a bomb is in front
+00424af4 bomb_grab                    // 170
+00426818 map_closein_update           // sound_play_id(140+g_slam_sound_variant) per slammed tile
+004034bc goldman_roulette             // 1300 tick, 1310 clap / 1320 buzzer (result 13), 20, 40
+00412987 quit_game                    // tunes_stop, voice 2600, Sleep(4000), exit
+00407542 audio_adjust_placeholder     // "PLACEHOLDER!" / msg 320; settings row 18 (unreachable, menu has 18 rows 0..17)
+0042a088 show_picture_wait            // (was pcx_load_plt) show <name>.plt; if EDX: wait key or V12 s; keys -> 20, Enter/Esc/Space/timeout -> 10
+0042a3f6 match_loop                   // (was results_screen) music 1020 at entry, 1130 at round end, voices 1700/2000
+0042b060 title_screens                // music 1000, logos, voice 2800

@@ -1,0 +1,199 @@
+# engine-loop-input-hud: proposed names (<hexaddr> <name> // comment)
+# --- program flow ---
+00443c70 WinMain                        // GNW95 WinMain (not a Ghidra function): mutex "GNW95MUTEX", class/window, calls main
+0042be22 main                           // game_init(); title_screens(); main_menu(); win_exit()
+0042a3f6 play_match                     // was results_screen: player select, round_start, add_bk_process(game_frame), match loop, results
+0042a191 game_frame                     // GNW background process run once per get_input(); THE per-frame update/render (label only in Ghidra)
+0042a16f game_frame_set_disabled        // DAT_004646ac = v (1 = game_frame returns immediately)
+00410f81 player_select_screen           // "Available players / joysticks" screen before a match
+00410b6e round_start                    // was maybe_level_load: level select/load, module resets, music, round timer set/reset/start
+004108e1 app_focus_changed              // GNW focus callback: on focus loss in a network game -> game aborted
+00412987 exit_game_confirm              // "Are you sure you want to exit?" -> quit sound, Sleep(4000), fatal_error(0)
+0041431c help_browser_bm                // F1: help viewer over *.BM files
+# --- round timer / HUD ---
+004105d2 round_timer_update_draw        // was maybe_hud_init: wall-clock countdown + draws clock (numeric font / infinity) at V110,V111
+00410465 round_timer_init               // total = V100+1 (overwritten by round_start)
+00410494 round_timer_set_total          // total_s, total_ms
+004104c2 round_timer_reset              // stop, elapsed=0, net_remaining=total
+004104f0 round_timer_start              // running=1, last_tick=now
+00410522 round_timer_stop               // running=0
+0041054a round_timer_net_set_remaining  // client: remaining from server packet
+00410578 round_timer_remaining          // 1001 if infinite else remaining_s
+004105b0 round_timer_elapsed_s          // total_s - remaining_s
+0041087d round_time_up                  // remaining < 1 (client: net value), never when infinite
+00420f07 players_update                 // per frame: start-freeze/team-colour countdowns, joy_poll, player_update_anim x10, HUD "S:%d K:%d" + xxx, twinkles
+00420d4e goldman_twinkle_spawn          // 5/6 chance per frame while elapsed_s < V1010
+00420e39 goldman_twinkles_draw          // was goldman_init: draws/ages 100 twinkle slots (seq "goldman")
+004214bc players_round_reset            // spawn data, ice buffers, start freeze = V30*REF_MS, team colour delay = V32*REF_MS
+00421947 players_exist_count            // DAT_004621d8 (alive or dying; teams in team play)
+00421969 players_alive_count            // alive + dying < V25 states (teams in team play; 2 in campaign)
+004219b0 round_winner_get               // -1 when time up / nobody; writes "Player %u"/"Team %u"/"undetermined"
+0042247a no_human_players               // 1 if every slot is OFF or AI
+004224e2 players_save_setup             // saves input types/devices + team flag (attract mode)
+00422552 players_restore_setup
+00421e33 player_set_input               // (idx, type DL, device BL)
+00421e80 player_cycle_input             // OFF->AI->KEY0->KEY1->JOYn->OFF
+00421ac8 player_get_score               // short +0x6A
+00421b0f player_get_kills               // short +0x6C
+0041672f player_text_color              // HUD fg colour (RMP rgb/3 -> colorTable) or team colour
+00416867 player_text_outline_color      // black, white for player 1 (non-team)
+004141f8 team_text_color                // team0 colorTable[0x7FFF], team1 colorTable[0x7D4A]
+00429f1a watermark_draw                 // Atbash string at 0x45bf06 (empty in retail), blinks with frame_counter&0x40
+00429ff1 watermark_draw_reset           // frame_counter = 0x40 (called from pcx_load_plt)
+# --- input ---
+0041e61e you_getinput                   // keyboard/joystick/net -> godir(+0x2E), act1(+0x38), act2(+0x39); multi-dir resolution
+0041e5c3 cell_is_open                   // no bomb && tile==0
+0040614a keydefs_set_defaults           // KEY0 arrows/Space/Enter, KEY1 R,G,F,D/S/A(Q on AZERTY)
+00407ad9 keydef_capture_key             // "Press key for '%s'": highest held scancode
+004102b7 menu_get_key                   // was maybe_input_get_menu_key: injected keys, joystick edges -> arrow/Enter codes, else gnw_get_input
+00410401 menu_inject_key                // queue (max 10) - never called
+0041043c input_flush                    // flush GNW input buffer + kb_clear + injected queue
+0042971f joy_init                       // (already named)
+00429790 joy_poll                       // joyGetPosEx all, prev<-cur, scale to 0..100
+00429520 joy_get_state                  // (j, &x%, &y%, &buttons)
+0042957e joy_get_prev_state
+004295dc joy_get_raw
+00429628 joy_is_connected
+0042965c joy_read_caps
+004296e2 joy_read_all_caps
+00429a61 joy_get_name
+# --- per-frame module entry points called by game_frame ---
+004056ca extras_update_draw             // was extra_create_objects (per frame; anim states +1 per frame)
+004245b9 bombs_update_ground            // maybe_bomb_update(0) + net_pending_explosions_expire
+0042459a bombs_update_carried           // maybe_bomb_update(1): bombs with holder (bomb+0x94) != 0, drawn after players
+00422a25 net_pending_explosions_expire  // 10 records, expire after 2*REF_MS
+00424f89 powerups_update_draw           // was maybe_power_create
+00426d06 flames_update_draw             // was flame_create
+00426818 map_update_enclosement         // regen + closing walls (only while alive_count > 1)
+00426704 map_regen_tiles                // wall-clock V340+level seconds
+0042641f map_set_clip_full              // graf_set_cliprect(&DAT_0046221c) = (0,0,640,480)
+0042633c map_draw_tiles_set_clip
+0041b961 sound_streams_update
+004016da campaign_update
+0040179f campaign_reset_clear_timer     // DAT_004646c0 = 0 (called before every ai_think)
+0040e765 net_receive_dispatch
+0040f386 net_server_alive
+0042a015 net_server_bailed_dialog       // "The server seems to have bailed out on this game!"
+0040fb90 net_send_forced_draw           // msg 0x26 (F10)
+# --- graphics helpers used by the loop ---
+00415920 graf_queue_sprite              // type 0 (x EAX, y EDX, frameno EBX)
+00415a1c graf_queue_sprite_remap_table  // type 2 (ECX = remap table)
+00415a9f graf_queue_sprite_color        // type 3 (ECX = colour 0..9) - deferred to second layer at flush
+004158cf graf_requeue_color_sprite      // type-3 handler: appends type-2 entry with DAT_00460564[color]
+00415b22 graf_flush_sprites             // draws queue in order (re-reads count -> two layers)
+00415c1f graf_flush_and_present         // was maybe_graf_flip: flush + win_draw(main window)
+00415ca4 graf_restore_background        // was maybe_graf_lock: memcpy background -> window buffer
+00415ce3 graf_clear_screen_buffer
+0041537f graf_draw_sprite
+004154cc graf_draw_sprite_silhouette
+004156c7 graf_draw_sprite_remapped
+00431e9c gnw_text_font                  // text_font(n); graf_init selects 6 (FONT6.FON)
+# --- debug / misc ---
+00413d01 debug_enabled                  // DAT_00460260 (getenv("KWD"))
+00413d45 debug_info_window              // Alt-D
+00413bb0 debug_output_reset             // Ctrl-D
+0040c678 net_dump_stats                 // Alt-N (debug only) -> netstats.txt
+004165d2 remap_editor_toggle            // Ctrl-R (debug only)
+00415ed1 remap_editor_draw
+00413cb0 delay_ms_pumping               // Sleep(100) steps + gnw_process_bk
+004148ac screen_min_wait_s              // 1 local, V13 network
+# --- GNW library (Fallout-1 GNW names) ---
+0043a508 gnw_get_input
+0043a56c gnw_process_bk
+0043a6a4 gnw_do_bk_process
+0043a6fc gnw_add_bk_process
+0043a74c gnw_remove_bk_process
+0043a594 gnw_add_input_buffer
+0043a624 gnw_get_input_buffer
+0043a68c gnw_flush_input_buffer
+0043a784 gnw_pause_game                 // unreachable (pause key -1)
+0043a7c0 gnw_default_pause_window       // "Paused"/"Done" window (dead)
+0043a8bc gnw_register_pause             // graf_init: register_pause(-1, NULL)
+0043a8d4 gnw_dump_screen                // Alt-C
+0043a9d0 gnw_default_screendump         // scr%.5d.bmp
+0043acf8 gnw_get_time                   // timeGetTime
+0043ad68 gnw_elapsed_time
+0043adc0 gnw_set_focus_func
+0043b518 gnw95_set_timer_period         // timeBeginPeriod / timeEndPeriod
+0043b5ec gnw95_process_message          // DirectInput keyboard drain, auto-repeat 500/80 ms, message pump
+0043b700 gnw95_process_key
+0043b6dc gnw95_clear_time_stamps
+0043b7d8 gnw95_lost_focus               // blocks until window active
+00433e14 kb_simulate_key                // updates keys[] (DAT_004a2ba0) and key ring buffer
+00433c6c kb_clear
+00433b60 gnw_kb_init
+00433d18 kb_set_layout
+00435ec8 kb_init_layout_us
+004449b0 dxinput_read_keyboard_buffer
+00444760 dxinput_init
+0043d454 gnw_win_draw
+0043e5cc gnw_set_title                  // also named mutex
+0045192e srand
+00451e3e crt_time
+00452012 crt_sleep
+# --- globals ---
+00464958 g_frame_dt_ms                  // dt per frame, clamped to V31 (150)
+0046494c g_ref_frame_ms                 // 1000 / V30 = 50
+0046496c g_last_frame_time              // timeGetTime of previous frame (set once per match)
+00464994 g_frame_counter                // ++ per game_frame; =0x40 when a PCX screen is shown
+004646ac g_frames_disabled
+00464a68 g_game_state                   // 0 playing, 1 match won, 2 aborted
+00464aec g_round_forced_end             // F10
+004646b4 g_intergame_nowait             // Alt-W
+00464938 g_attract_mode
+0046489c g_campaign_mode
+00464894 g_campaign_level_result        // 1 done, 2 failed
+00464984 g_hurry_sound_played
+0046492c g_gold_player                  // previous round winner (player, or 0/2 team), -1 none
+004648bc g_opt_goldman
+00464964 g_opt_team_play
+0046497c g_opt_win_by_kills
+00464948 g_opt_playtime                 // seconds, 1001 = infinite
+00464968 g_opt_assign_keyboards
+004601a8 g_round_total_s
+004601ac g_round_total_ms
+004601a0 g_round_last_tick
+004601a4 g_round_remaining_s
+004601b0 g_round_net_remaining
+004601b4 g_round_timer_running
+004601b8 g_round_elapsed_ms
+004601bc g_round_elapsed_s
+004621e0 g_round_start_freeze_ms        // V30*REF_MS = 1000, -dt per frame; no input while > 0
+004621e8 g_team_color_delay_ms          // V32*REF_MS = 2000
+004621e4 g_exist_count_acc
+004621d8 g_exist_count
+004621d0 g_alive_count_acc
+004621d4 g_alive_count
+004621b4 g_team_exists[2]
+004621bc g_team_alive[2]
+004621dc g_teams_alive
+004621c8 g_ice_buffers                  // 10 ptrs -> 30 x {age_ms, dir}
+004621cc g_twinkles                     // 100 x {active, x, y, age}
+004621ec g_goldman_seq_states
+0045be40 g_goldman_seq
+004621f0 g_twinkle_last_frame
+0045be3c g_kface_player                 // joystick easter egg, -1 none
+004a2ba0 gnw_keys                       // keys[256], DIK-indexed, 0 up / 1 pressed / 2 repeat
+004645bc g_keydefs                      // [2][10] DIK codes (up,right,down,left,act1,act2,unused x4)
+0046309c g_joysticks                    // 10 x 0x38 bytes
+00464294 g_num_joysticks                // min(joyGetNumDevs, 10)
+00460174 g_injected_keys                // [10]
+0046019c g_injected_key_count
+00460260 g_debug_mode                   // atoi(getenv("KWD"))
+00464ae4 g_main_window                  // GNW window 640x480
+00464a70 g_screen_w                     // 640
+00464a6c g_screen_h                     // 480
+00460bb0 g_sprite_queue                 // 400 x 24 bytes
+00460bbc g_sprite_queue_count
+00460bcc g_background_buffer
+00460bc4 g_window_buffer
+00460058 g_net_mode                     // 0 local, 1 client, 2 server
+0045c3cc gnw_repeat_rate                // 80 ms
+0045c3d0 gnw_repeat_delay               // 500 ms
+004a37b4 gnw_pause_key                  // -1 (disabled)
+004a37b0 gnw_screendump_key             // 0x12E Alt-C
+004a37ac gnw_game_paused
+004a37c4 gnw_bk_disabled
+0045c4e0 gnw95_is_active
+004a2ca4 gnw_kb_layout                  // 0 US,1 FR,2 DE,3 IT,4 ES
+00495390 gnw_color_table                // RGB555 -> palette index (32K)

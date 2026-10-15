@@ -1,0 +1,125 @@
+# bombs.c (0x422b3b-0x424d36) -- functions
+00422b3b bombs_deinit                 // frees bomb array, explode list, danger map, ghost list (registered with FUN_00410ebf at init)
+00422c13 bomb_dud_schedule_next       // g_next_dud_time = time() + V320 + rand() % max(V321,1)   (seconds, wall clock)
+00422c7a bombs_init                   // allocs 100*0x98 bombs, explode list (2x100 dwords), danger map (W*H ints), ghost list (10*0x18); resets; schedules first dud
+00422d3b bombs_reset                  // clears all 100 slots, explode list, ghost list (called at level load). Does NOT reset dud timer
+00422ddd bomb_alloc                   // first slot with active==0, memset 0x98 -> ptr, or NULL when all 100 used
+00422e48 bomb_at                      // bomb_at(cx=EAX, cy=EDX): first active bomb whose px->cell == (cx,cy) and state not FLYING(2)/HELD(3); includes duds
+00422ede bomb_create                  // (cx,cy,type,colour,owner,flamelen,fuse_frames,delay_frames,id,is_net); ret 0x18
+004230a5 bomb_slide_cell_passable     // cell ahead of a sliding bomb: no bomb, no player, (visible powerup DESTROYED, not blocking), no warp, map==0
+00423188 bomb_cell_free_ai            // no bomb, no warp, map==0 (used only by AI @0x40ad2c/0x40ae81)
+00423209 bomb_explode_list_add        // (bomb=EAX, skipdir=EDX) append to deferred-detonation list (max 100)
+0042325d bomb_net_explode             // net: (id,x,y,dir) -> set pos + explode_list_add, or store in ghost list
+0042331c bombs_update                 // bombs_update(heldPass): movement, anim, fuse, explosion, danger map, draw queue (was maybe_bomb_update)
+0042459a bombs_update_held            // bombs_update(1): bombs with a holder; called after players
+004245b9 bombs_update_free            // bombs_update(0) + ghosts_age(); called before powerups/flames/players
+004245da bombs_count_owned            // count active bombs (incl. dud/flying/held) whose owner == arg
+0042464b bomb_kick                    // (bomb, dir=EDX): sound 120 if new dir or resting; snap if moving & dir changes; state=SLIDING, speed=V300
+00424708 bomb_kick_request            // (bomb, dir): only if state REST/SLIDING; local -> bomb_kick, remote -> net msg 0x37
+0042475f bomb_net_kick                // net: kick bomb by id
+004247c5 bombs_stop_kicked            // (owner): set stop flag on owner's non-jelly SLIDING bombs
+00424841 bomb_destroy                 // active = 0 (silent removal)
+00424864 bomb_net_destroy             // net: destroy bomb by id
+004248c6 bomb_punch                   // (bomb, dir=DX): snap to cell centre, state=FLYING, speed=V301, reset flight counters, holder=NULL
+00424987 bomb_punch_request           // (bomb, dir): only if state REST/SLIDING/HELD; local -> bomb_punch, remote -> net msg 0x36
+004249ea bomb_net_punch               // net: punch bomb by id
+00424a50 player_punch_bomb            // (player): bomb_at(player cell + facing) -> bomb_punch_request + sound 150; always returns 1
+00424af4 bomb_grab                    // (bomb, player=EDX): link both, state=HELD, stop flag 0, sound 170
+00424b41 bombs_trigger_oldest         // (owner): oldest (min +0x40, < current frame) non-flying non-held TRIGGER bomb -> explode_list_add(b,0)
+00424c47 bombs_untrigger              // (owner): owner's TRIGGER bombs -> REGULAR, fuse_elapsed = 0
+00424cbe bomb_net_set_pos             // net: (id,x,y,state)
+00424d37 danger_get                   // danger_get(cx,cy) -> int (0 if OOB). debug "GET (%u,%u)". names.txt had it as maybe_influence_set (swapped)
+00424dfe danger_set_max               // danger_set_max(cx,cy,v=EBX): cell = max(cell,v). debug "SET (%u,%u)". names.txt had maybe_influence_get (swapped)
+# helpers living in you.c but owned by the bomb logic
+00422991 ghost_alloc                  // pending ("ghost") net bomb action slot: {active,id,x,y,dir,age}
+00422a02 ghost_free
+00422a25 ghosts_age                   // age += dt; discarded when age > 2*50 ms (stat "Ghost Bomb Actions Lost")
+00422a9f ghost_find                   // by bomb id
+00422b0f bomb_type_name               // 0 "regular", 1 "trigger", 2 "jelly"
+0041eb13 player_drop_bomb             // (player, cx=EDX, cy=EBX, delay_frames=ECX): picks type/flame/fuse, bomb_create + net msg 0x21
+0041e5c3 cell_free_for_bomb           // (cx,cy): !bomb_at && map_get==0
+0041ec84 player_move_step             // per-pixel player movement loop; contains the KICK trigger
+00421f7e player_bomb_hit_head         // flying bomb lands on player: stun (+0x3a=16, anim 3) and lose 1+rand()%3 powerups (local games only)
+00421cb5 player_at                    // (cx,cy): active, not dying player in that cell
+00421d3f player_at_not_remote         // same but excludes net-remote players (controller 4)
+00421969 players_alive_count          // alive players (teams in team mode, 2 in campaign) as counted by last players_update
+00420f07 players_update_all
+0041f29b player_update                // (was player_update_anim) full per-player update incl. bomb actions
+0041e16a player_drop_exclusive_power  // (player, idx=EDX); idx 9 + no trigger left -> bombs_untrigger(owner)
+0041dcb2 player_death_start           // (player, killer=EDX); destroys the bomb the player holds
+# map.c coordinate helpers used everywhere by bombs
+00426524 cell_to_px_x                 // 20 + 20 + 40*cx
+0042655f cell_to_px_y                 // 68 + 36 - 1 + 36*cy
+00426599 px_offset_x                  // offset from cell centre, range [-20,19]
+004265eb px_offset_y                  // offset from cell "centre" (bottom line), range [-18,17]
+0042665c px_to_cell_x                 // buggy floor for x<20
+004266a3 px_to_cell_y                 // buggy floor for y<85
+00425fb9 map_get                      // 0 empty, 1 solid, 2 brick; 1 when out of bounds
+00425e36 map_set_raw
+00425e9b map_set                      // set + redraw background tile
+00425efc map_redraw_as                // redraw background tile as value v but KEEP the stored map value
+# other modules (as seen from bombs)
+0042542d powerup_at                   // any powerup with state != 0 (1 hidden, 2 visible)
+004254f3 powerup_remove               // state = 0 (+ net msg 0x2f)
+004255b2 powerup_spawn_random         // (type): new visible powerup on a random empty cell w/o bomb/powerup/player (100 tries)
+00425107 powerup_reveal               // brick at (cx,cy) destroyed: hidden powerup -> visible
+00425bed powerup_eject                // (player, type=EDX) -> powerup_spawn_random(type)
+00426fcc flame_spawn                  // (cx,cy,kind,colour,owner): kind 0-3 arm tip dir d, 4-7 arm middle dir d-4, 8 centre, 9 burning brick
+0042708d flame_at
+00427115 flame_remove
+00426d06 flames_update                // per-frame flame timer/draw (names.txt calls it flame_create, which is wrong)
+00405654 extra_at                     // extras: type 0 arrow, 1 warp hole, 2 conveyor, 3 trampoline; dir at +0x2c
+00427abb sound_play_group_throttled   // plays group only if not played in the last 3 rendered frames
+004278f2 sound_play_id                // plays one exact SOUNDLST id (no group)
+00415a9f graf_queue_sprite_remap      // (x, y, frame, colour=ECX) display-list entry type 3
+00415920 graf_queue_sprite            // (x, y, frame) display-list entry type 0
+0040c06a net_mode_get                 // DAT_00460058: 0 local game, 1 client, 2 server
+0040f096 net_send_bomb_create         // msg 0x21
+0040f10f net_send_bomb_explode        // msg 0x22 (id,x,y,dir)
+0040f974 net_send_bomb_pos            // msg 8
+0041013f net_send_punch_request       // msg 0x36
+0041017a net_send_kick_request        // msg 0x37
+0040fdb6 net_send_held_bomb_destroyed // msg 0x3c
+00451e3e time                         // libc time(t*)
+00451940 memset                       // (ptr=EAX, byte=EDX, n=EBX)
+00451d78 strcat
+00433b0b sin                          // fsin
+00433b38 __CHP                        // round toward zero (frndint with RC=chop)
+00451e6d abs
+# globals
+0046220c g_bombs                      // OBJ[100], 0x98 bytes each
+004621f8 g_explode_list_bomb          // OBJ*[100]
+004621fc g_explode_list_dir           // int[100] (skip-direction code, stored as byte into bomb+0x38)
+00462200 g_explode_list_count
+00462210 g_bombs_last_frame           // frame number whose start-of-frame work (explode list, danger clear) is done
+004621f4 g_danger_map                 // int[W*H], cleared each frame by bombs_update
+00462204 g_danger_map_bytes           // W*4*H (used, wrongly, as an element bound)
+00462208 g_ghost_bomb_actions         // 10 x 0x18
+00464af4 g_next_dud_time              // time_t seconds
+0045becc g_dir_dx                     // {0,1,0,-1}  dir 0 up, 1 right, 2 down, 3 left
+0045bedc g_dir_dy                     // {-1,0,1,0}
+0045be44 g_bomb_type_names            // "regular","trigger","jelly"
+0045a2b6 s_bomb_fmt                   // "bomb %s green"
+0045a2c4 s_dud_suffix                 // " dud"
+0045a2c9 g_pi_approx                  // double 3.14159 (also at 0045a2d9)
+0045a2d1 g_three                      // double 3.0
+00464958 g_frame_dt                   // ms elapsed this frame, capped to V31 (150)
+0046494c g_ref_frame_ms               // 1000 / V30 = 50
+00464994 g_frame_counter              // ++ once per rendered game frame
+00460058 g_net_mode
+00464930 g_conveyor_speed             // option conveyor_speed 0..2 -> V190+idx
+00464940 g_stomped_bombs_detonate     // option stomped_bombs_detonate (default V46)
+00464990 g_diseases_destroyable       // option diseases_destroyable (default V120)
+004621d4 g_players_alive
+004621dc g_teams_alive
+00461bc4 g_players                    // OBJ[10]
+004648ac g_map_w                      // 15
+004648b4 g_map_h                      // 11
+004648a4 g_cell_w                     // 40
+004648a0 g_cell_h                     // 36
+00464898 g_field_x0                   // (640-600)/2 = 20
+004648a8 g_field_y0                   // 480-412 = 68
+004642ac stat_bombs_dropped           // MESSAGES 914
+004642b8 stat_bricks_destroyed        // MESSAGES 917
+004642e0 stat_ghost_found             // MESSAGES 927
+004642e4 stat_ghost_lost              // MESSAGES 928

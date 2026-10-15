@@ -1,0 +1,138 @@
+# flames-map-powerups: proposed names (map.c / flame.c / power.c + hurry, regen, pickup helpers)
+# format: <hexaddr> <name> // comment
+#
+# ---- map.c ----
+0042647a map_init                    // W=15,H=11,cell 40x36, origin ((640-600)/2, 480-412) = (20,68); alloc int[165]
+00425fb9 map_get                     // map_get(x=EAX,y=EDX) -> 0 blank,1 solid,2 brick; out of bounds -> 1
+00425e36 map_set_raw                 // map_set_raw(x,y,v=EBX) no redraw, bounds-checked
+00425e9b map_set                     // map_set(x,y,v): set + redraw cell into background buffer
+00425f79 map_set_if_changed          // map_set only if map_get(x,y)!=v (used by tile regeneration)
+00425efc map_draw_cell_as            // temporarily set cell to v, redraw, restore old value (brick hit: draw as blank, keep brick)
+00425d22 map_draw_cell               // (was map_tile_seqs) restore field bg rect, then blit "tile <level> solid|brick" frame 0
+0042633c map_draw_all                // draw all 165 cells, playfield cliprect = {0,0,screenW,screenH}
+0042641f map_apply_cliprect          // graf_set_cliprect(&g_map_cliprect) at start of object drawing
+004260f5 map_generate                // scheme grid + brick density (rand()%100 >= density -> blank); net client receives
+00426029 map_set_plus_raw            // UNUSED: map_set_raw on (x,y) and 4 neighbours
+0042608f map_set_plus                // UNUSED: map_set on (x,y) and 4 neighbours
+00426524 map_cell_center_x           // 20 + 20 + 40*cx  (= 40+40cx)
+0042655f map_cell_feet_y             // 68 + 36 - 1 + 36*cy (= 103+36cy)
+00426599 map_offset_in_cell_x        // ((px-20) mod 40) - 20, range -20..19
+004265eb map_offset_in_cell_y        // ((py-85) mod 36) - 18, range -18..17
+0042665c map_px_to_cx                // (px<20 ? px-20 : px) -20) / 40 (C truncation)
+004266a3 map_py_to_cy                // (py-85<0 ? py-67 : py) - 85) / 36 (C truncation)
+00426704 map_regen_tick              // regenerating bricks (VALUELST 340+level seconds, radius V695)
+00426818 map_update                  // per frame: regen + hurry/enclosement spiral (falling solid blocks)
+# ---- power.c ----
+00424f0b power_init                  // alloc 165 x 0x98 power cells
+00424f5e power_clear_all             // memset power grid
+00424f89 power_update_draw           // (was maybe_power_create) per frame: cleanup + draw visible powerups
+00425107 power_reveal_at             // brick at (x,y) destroyed: hidden->visible, 40 s "over-powerful" relocation (V102)
+00425383 power_spawn_visible_at      // power_spawn_visible_at(x,y,type): state=2
+0042542d power_at                    // power_at(x,y) -> entry if state!=0 else NULL
+004254b5 power_mark_remove           // sets +8 (removed next update) (net path)
+004254f3 power_destroy               // state=0 (+net message when g_power_net_notify)
+00425530 power_net_remove_at         // network: remote destroy, no echo
+004255b2 power_spawn_random_blank    // spawn visible powerup of type on random blank free cell (never clog=13)
+0042568a power_net_set               // network: set state/type at cell
+00425704 map_clear_cell_keep_power   // relocate hidden powerup to another brick, then map_set(x,y,v)
+0042583b map_clear_start_area        // center + N,E,S,W (non-solid) via map_clear_cell_keep_power
+004258e5 power_place_level           // VALUELST 400..412 placement under bricks at level start
+00425bed player_spit_power           // (player,type=EDX) -> power_spawn_random_blank(type)
+00425c10 power_is_exclusive          // 5 punch,6 grab,7 spooge,9 trigger,10 jelly -> 1
+00425c7f power_draw_icon             // (was maybe_power_draw) power_draw_icon(x,y,type): "power %s" (goldman roulette)
+00425cdf power_type_name             // UNUSED: name table lookup, "unknown?" if out of 0..14
+# ---- flame.c ----
+00426c88 flame_init                  // alloc 165 x 0x98 flame cells
+00426cdb flame_clear_all             // memset flame grid
+00426d06 flame_update_draw           // (was flame_create) per frame: age, expire (V10/V20), brick removal, draw
+00426fcc flame_set                   // flame_set(x,y,type,color,owner[stack]) memset+state=1; danger 1000
+0042708d flame_at                    // flame_at(x,y) -> entry if state!=0 else NULL
+00427115 flame_kill                  // state = 0
+# ---- AI danger grid (used by flames/hurry; names were swapped) ----
+00424d37 danger_get                  // (was maybe_influence_set) returns g_danger[y*15+x], 0 if out of bounds
+00424dfe danger_raise                // (was maybe_influence_get) g_danger[cell] = max(g_danger[cell], v=EBX)
+# ---- pickup / drop (you.c, cross-ref player agent) ----
+0041e21e player_pickup_power         // (player=EAX, power=EDX): cure chance, effects, exclusivity, limits, AWESOME, sounds
+0041e16a player_drop_excess          // (player,type): exclusive -> drop 1 & reset to start; else drop each excess
+0041dbfe player_drop_all_powers      // end of death animation: every count above VALUELST 50+t respawned randomly
+00421f7e player_head_hit             // punched bomb lands on head: stun + lose V670+rand()%V671 powerups
+0041dfb6 player_give_disease         // (player, play_sound) random disease 0..8 (7 = swap positions)
+0041df4c player_cure_diseases        // clears disease flags (+0x78,+0x7c,+0x84..+0x91); V122 test is dead code
+00421cb5 player_at_cell              // first slot with state!=0 && !dying at cell (incl. network players)
+00421d3f player_at_cell_local        // same but excludes network players (+0x10==4)
+00422351 no_player_within            // (x,y,r): 0 if ANY of 10 slots (even unused/dead) has |dx|+|dy|<=r
+00421969 alive_count                 // previous frame's alive players (or alive teams); campaign -> 2
+# ---- bombs (cross-ref bomb agent) ----
+00422e48 bomb_at_cell                // bomb with state!=0 at cell, excluding flying/held (+0x2e==2/3)
+00423209 bomb_queue_detonate         // (bomb, skipdir+1 | 0xFF) -> explodes on next frame
+00424841 bomb_remove                 // state = 0 (no explosion)
+00424c47 bombs_untrigger             // owner's trigger bombs become regular, fuse timer restarts
+004230a5 bomb_slide_cell_free        // kicked bomb next-cell test; destroys visible powerup in that cell
+# ---- misc ----
+00405d0c extras_remove_for_hurry     // removes warps (type 1) and trampolines (type 3) when enclosement starts
+00410578 time_remaining_s            // DAT_004601a4 (or 1001 when unlimited)
+004105b0 time_elapsed_s              // DAT_004601bc = total_s - remaining_s
+004278f2 sound_play_id               // play one specific SOUNDLST id (no group/random)
+0043acf8 time_ms                     // timeGetTime()
+0045190a rand                        // seed = seed*1103515245+12345; return (seed>>16)&0x7fff
+0045192e srand
+00451e6d abs
+0042be0b nop_hook                    // empty function (still preceded by rand() calls in callers)
+00404852 scheme_cell                 // scheme char at (x,y): ':'->2, '#'->1, else 0; out of bounds -> 1
+004048eb scheme_set_cell             // editor: write '#',':','.'
+0042a191 game_frame                  // main per-frame function (not in decompilation): dt, updates, hurry text
+# ---- globals ----
+0046222c g_map                       // int[11][15] cell types, index y*15+x
+00462214 g_power_grid                // 165 x 0x98 power cells, index y*15+x
+00462218 g_power_count               // 165
+0046224c g_flame_grid                // 165 x 0x98 flame cells
+00462248 g_flame_count               // 165
+004621f4 g_danger                    // AI danger int per cell, cleared each frame (bombs.c)
+00462204 g_danger_bytes              // 660
+004648ac g_map_w                     // 15
+004648b4 g_map_h                     // 11
+004648a4 g_cell_w                    // 40
+004648a0 g_cell_h                    // 36
+00464898 g_map_origin_x              // 20
+004648a8 g_map_origin_y              // 68
+0046221c g_map_cliprect              // {0,0,640,480} (x0,y0,x1,y1 at 0046221c..00462228)
+0046499c g_level                     // current level/wave 0..10 (tile/xbrick/field set, regen, ice)
+004647a0 g_scheme_density            // scheme -B brick density (default 90)
+0045e040 g_scheme_rows               // char*[11] scheme rows
+00464700 g_scheme_name
+004647a4 g_scheme_bornwith           // int[13]
+00464764 g_scheme_has_override       // int[13]
+004646c4 g_scheme_override           // int[13]
+004647e0 g_scheme_forbidden          // int[13] (only used by the 'random' powerup)
+0046481c g_scheme_starts             // 10 x {x,y,team}
+0046460c g_start_x                   // int[10]
+0046465c g_start_y                   // int[10]
+0045be50 g_power_names               // char*[15+4]: bomb,flame,disease,kicker,skate,punch,grab,spooge,goldflame,trigger,jelly,disease3,random,clog
+0045bea0 g_flame_type_names          // tipnorth,tipeast,tipsouth,tipwest,midnorth,mideast,midsouth,midwest,center,brick
+0045becc g_dir_dx                    // {0,1,0,-1}  (0=N,1=E,2=S,3=W)
+0045bedc g_dir_dy                    // {-1,0,1,0}
+0045be98 g_power_net_notify          // 1; 0 while applying a remote powerup removal
+0045be9c g_hurry_needs_reset         // init 1; 0 = armed (before start), 1 = running/finished
+00462230 g_hurry_x
+00462234 g_hurry_y
+00462238 g_hurry_dir                 // starts 1 (east), turns clockwise
+00462240 g_hurry_ring                // ring depth 0..
+0046223c g_hurry_last_ms             // time of last block (timeGetTime), += 250 per block
+00462244 g_hurry_sound               // 0..2 -> sound id 140+n (clikplat/sqrdrop2/sqrdrop4)
+00464974 g_opt_enclosement_depth     // options.ini enclosement_depth (default V27=1), 0..V28-1
+00464940 g_opt_stomped_bombs_detonate // options.ini (default V46=1)
+00464990 g_opt_diseases_destroyable  // options.ini (default V120=1)
+00464988 g_diseases_time_limited     // V121, never read
+00464a74 g_diseases_recycle          // V122, only a dead compare in player_cure_diseases
+00464a78 g_diseases_multiply         // V123
+00464980 g_diseases_curable          // V124
+0046498c g_diseases_cure_chance      // max(V125,1)
+00464978 g_regen_last_ms             // never initialised (0) and never reset
+00464984 g_hurry_voice_played        // reset at level load
+00464994 g_frame_counter             // ++ per rendered frame
+00464958 g_frame_dt_ms               // real ms since last frame, capped at V31=150
+0046494c g_ref_frame_ms              // 1000/V30 = 50
+004601a4 g_time_remaining_s
+004601bc g_time_elapsed_s
+004601a8 g_time_total_s              // playtime+1, 1001 = unlimited
+00460058 g_net_mode                  // 0 none, 1 client, 2 server

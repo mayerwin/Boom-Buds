@@ -1,0 +1,53 @@
+# Checks, builds and publishes the game on GitHub Pages at every push to main (Settings -> Pages -> Source:
+# GitHub Actions). The game data (public/data) is in the repository: it is made from the original game with
+# `npm run assets`. Every file of a build has content-hashed URLs and the build id is in version.json, so
+# players get a new release at once (tools/build/versioning.ts, src/app/update.ts).
+# Optional TURN relay for players whose networks block direct connections: repository variables TURN_URLS
+# (comma separated) and TURN_USERNAME, secret TURN_CREDENTIAL.
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    # documentation changes do not change the game
+    paths-ignore: ['**.md', 'docs/**', 'LICENSE*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+        env:
+          VITE_TURN_URLS: ${{ vars.TURN_URLS }}
+          VITE_TURN_USERNAME: ${{ vars.TURN_USERNAME }}
+          VITE_TURN_CREDENTIAL: ${{ secrets.TURN_CREDENTIAL }}
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: dist
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

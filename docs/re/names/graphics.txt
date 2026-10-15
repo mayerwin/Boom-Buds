@@ -1,0 +1,314 @@
+# ---- graf.c ----
+0041485a list_select_dialog             // mouse_show; win_list_select (0x42db80, GNW) ; mouse_hide
+004148ac screen_min_wait_secs           // 1 (local) or V13 (net); not graphics
+004148e5 graf_show_random_glue          // glue<rand()%max(1,V16)>.plt -> remapped into background buffer
+0041495a graf_exit                      // frees remap tables, background, field, queue, winz; deletes main window
+00414a65 graf_load_remap                // (was graf_load_remaps) (n,R,G,B,rebuild) read n.RMP (file RGB wins) or compute green->colour table and write it
+00414df4 graf_init                      // win_init 640x480x8, winz skin, color.pal copy, main window, background, remaps, text_font(6)
+004150bd palette_restore_game           // memcpy(0x46059c, 0x46089c, 768); setSystemPalette
+004150f0 pcx_load_remapped              // datafile_read: pcx_load + remap to game palette via colorTable(rgb>>3); idx0 forced 0
+00415120 pcx_load_raw                   // datafile_read_raw: pcx_load, own palette kept in 0x4617c4
+00415150 graf_get_pcx_palette           // memcpy(0x46059c, pcx palette 8-bit, 768); returns 0x46059c
+00415189 graf_target_screen             // graf_target = win_get_buf(main_window)
+004151ad graf_target_background         // graf_target = background buffer 0x460bcc
+004151cc graf_load_pcx_to_target        // pcx_load_remapped + memcpy 640*480 into graf_target
+0041522d graf_show_pcx_own_palette      // pcx_load_raw, palette>>2 -> setSystemPalette, memcpy 640*480 into target
+004152d7 graf_blit_opaque               // (src,x,y,w,h,srcPitch) buf_to_buf into target, no clipping
+0041532b graf_blit_trans                // (src,x,y,w,h,srcPitch) trans_buf_to_buf into target, no clipping
+0041537f graf_draw_frame                // queue type 0: transparent blit at (x-hotx, y-hoty), clipped
+004154cc graf_draw_frame_solid          // queue type 1: non-zero pixels -> one colour (never queued)
+004156c7 graf_draw_frame_remap          // queue type 2: p ? table[p] : 0, clipped, transparent
+004158cf graf_requeue_remap_index       // queue type 3 handler: clamp idx 0..9, APPEND type-2 entry (drawn last)
+00415920 graf_queue_sprite              // (x,y,frame) type 0; max 400 entries ("numgrafreqs")
+00415999 graf_queue_sprite_solid        // (x,y,frame,colour) type 1; unused
+00415a1c graf_queue_sprite_table        // (x,y,frame,table) type 2
+00415a9f graf_queue_sprite_remap        // (x,y,frame,colour_index) type 3 (deferred to end of queue)
+00415b22 sprite_queue_flush             // draws queue in order; count re-read each iteration
+00415c1f graf_flip                      // (was maybe_graf_flip) stat++, sprite_queue_flush, win_draw(main_window)
+00415c49 graf_fade_in_unused            // setSystemPalette(0x46059c) instantly; arg ignored; never referenced
+00415c6d graf_fade_out_unused           // setSystemPalette(all black) instantly; never referenced
+00415ca4 graf_restore_background        // (was maybe_graf_lock) memcpy(target, background, 640*480)
+00415ce3 graf_clear                     // memset(target, 0, 640*480)
+00415d15 graf_load_background_unused    // clear background + load remapped pcx into it; never referenced
+00415d9c graf_reset_cliprect_unused     // clip=(0,0,640,480); never referenced
+00415dd9 graf_set_cliprect              // clamps to screen
+00415e81 remapedit_print_value          // debug remap editor
+00415ed1 remapedit_draw                 // debug remap editor overlay (per game frame when open)
+0041604c remapedit_rebuild              // graf_load_remap(sel, R,G,B, rebuild=1) -> writes n.rmp
+00416094 remapedit_r_minus              // debug button callbacks 0x416094..0x41627c (R/G/B -5/+5, select, reload)
+004162f0 remapedit_open
+00416591 remapedit_close
+004165d2 remapedit_toggle
+004165fc graf_load_field_bitmap         // field_bitmap = pcx_load_remapped; fatal if not 640x480
+004166bf graf_copy_field_rect           // (x,y,w,h) field_bitmap -> target, opaque
+0041672f player_text_color              // team: team_text_color; else colorTable[min(R/3,31),min(G/3,31),min(B/3,31)]
+00416867 player_text_outline_color      // no team play && i==1 -> white (idx 72) else black (idx 255)
+004168b5 graf_fill_rect                 // (x,y,w,h,idx) buf_fill into target
+004168ff graf_print_filled_unused       // fill + win_print; never called
+0041696c graf_print                     // (win,str,maxw,x,y,fg,bg) outline text (bg at 4 diagonals, fg at +1,+1); fatal if off-window
+00416b43 blit_nine_slice                // WINZ 9-slice: centre tiles, edges, corners
+0041726b window_fill_winz               // blit_nine_slice(winz,72,72, win buf, W, H)
+004172ba graf_print_centered            // (win,str,cx,y,fg,bg): w=text_width+2; x=cx-w/2
+0041735a graf_queue_seq_by_name         // (x,y,name) queue state 0 of named sequence (scheme editor)
+# ---- misc.c (graphics-related) ----
+0041302d help_view_file                 // (was graf_load_images) .BM viewer, <IMGname> -> name.plt remapped, transparent
+00413bd6 graf_cursor                    // (x,y) blinking "cursor1" menu marker; next blink = now + V690 + rand()%V691 s
+00412e0c progress_set_title             // "Completion"
+00412e33 progress_window_update         // (percent) 360x128 window at (150,200)
+00413fb9 draw_press_f1_help             // centred at (V790,V791)=(320,440), cyan idx 97
+004141f8 team_text_color                // team0 idx 72 (white), team1 idx 254 (light red)
+00414340 msgbox_ok
+0041456c msgbox_yes_no
+# ---- datafile.c ----
+0041bb56 datafile_default_mangler       // identity
+0041bb79 datafile_set_mangler           // unused
+0041bb9b datafile_set_loader            // unused (loader stays NULL -> only .pcx loadable)
+0041bbbd pcx_remap_to_palette           // map[0]=0, map[i]=colorTable[(r>>3)<<10|(g>>3)<<5|b>>3]
+0041bda4 datafile_read_raw              // ext "pcx" -> pcx_load(path,&w,&h, 0x4617c4)
+0041be63 datafile_read                  // raw + pcx_remap_to_palette
+0041beb6 datafile_load_palette_only     // unused
+0041bff5 datafile_get_palette           // returns 0x4617c4
+0041c016 datafile_load_block            // unused
+# ---- ani.c ----
+0041c0ba ani_rle_decode16               // enctype 0x11
+0041c1ab ani_alloc_frame                // grows 12-byte frame table 0x461b6c
+0041c238 ani_alloc_frame_bitmap
+0041c299 ani_crop_frame                 // crop key-0 borders, adjust hotspot (frames != 40x36)
+0041c5e0 ani_get_frame_bitmap           // (frame,&w,&h,&hotx,&hoty) -> bitmap
+0041c707 ani_alloc_record
+0041c7a5 ani_alloc_seq                  // grows 60-byte sequence table 0x461b5c
+0041c837 ani_read_fram                  // CIMG type 4 only; RGB555 -> colorTable; key -> 0
+0041cd03 ani_read_seq
+0041d1a7 ani_load_file                  // reads record directory
+0041d350 ani_close_file
+0041d3b5 ani_load_one                   // all FRAM then all SEQ of one file
+0041d4c2 ani_exit
+0041d669 ani_seq_compare                // qsort comparator (names)
+0041d695 ani_load_master                // MASTER.ALI; low-mem skips corner1-7, xplode2-17; qsort seqs
+0041d826 ani_list_seqs
+0041d957 ani_find_seq
+0041da23 ani_seq_state_count_by_name
+0041da5c ani_seq_state_count
+0041daa7 ani_seqno_to_frameno           // first frame ref of state%count
+0041db41 ani_seqno_stateno_get_offsets  // dx,dy of that ref (only flames use it)
+# ---- pcx.c / screens ----
+00429ae1 pcx_read_header
+00429c59 pcx_decode_line                // RLE run state carried across lines (0x45bec8/9)
+00429d2c pcx_read_palette               // ver 5: 0x0C + 768 bytes at EOF-769 (8-bit)
+00429de7 pcx_load
+00429f1a draw_watermark_impl            // Atbash string at 0x45bf06 is empty
+00429ff1 draw_watermark                 // sets frame counter 0x464994 = 0x40 (side effect)
+0042a088 show_picture_wait              // (was pcx_load_plt) (name,wait) own-palette picture screen
+0042a16f game_set_paused
+0042a191 game_frame                     // per-frame background process (render order: see graphics.md 5.4)
+00410578 round_time_left_s              // 1001 if infinite else remaining seconds (HURRY test)
+# ---- GNW color.c ----
+0042c3c8 colorSetFileIO
+0042c3f4 colorSetNameMangler
+0042c3fc colorMixAdd
+0042c418 colorMixMul
+0042c434 calculateColor
+0042c44c RGB2Color
+0042c460 Color2RGB
+0042c4a0 fadeSystemPalette              // unused
+0042c534 setSystemPalette               // gamma (identity) + GNW95_SetPalette; copies to systemCmap
+0042c570 getSystemPalette               // returns 0x464b50
+0042c578 setSystemPaletteEntries        // unused
+0042c60c setSystemPaletteEntry          // unused
+0042c668 getSystemPaletteEntry
+0042c68c setIntensityTableColor
+0042c794 setIntensityTables
+0042c7d8 setMixTableColor
+0042c9fc loadColorTable                 // (was color_find_table) COLOR.PAL: invalid (>63) entries -> black
+0042cc5c buildBlendTable
+0042cea8 rebuildColorBlendTables
+0042cf38 freeColorBlendTable
+0042cf70 colorSetMemoryProcs
+0042cf84 colorGamma                     // called with 1.0
+0042d03c colorBuildColorTable           // inverse colormap; only if COLOR.PAL missing
+0042d93c colorPushColorPalette          // unused ("colorpalettestack")
+0042d9f4 colorPopColorPalette           // unused
+0042dae0 initColors                     // (was color_load_pal)
+0042db2c colorsClose
+0042db80 win_list_select                // GNW selection list dialog (wrapper of 0x42dbcc)
+# ---- GNW text / mouse / window / svga ----
+00430d70 GNW_mouse_init
+00430e4c mouse_colorize                 // default 8x8 arrow: 1->idx142, 15->idx72, 0->transparent
+00430edc mouse_set_shape
+00431178 mouse_show
+00431360 mouse_hide
+00431804 mouse_get_position
+004318c4 mouse_get_buttons
+00431b1c GNW_text_init                  // loads font0..font9
+00431bbc load_font                      // "font%d.fon"
+00431d40 text_add_manager
+00431e9c text_font                      // select font; sets 0x45c378.. function pointers
+00431f1c text_find_manager
+00431f70 GNW_text_to_buf                // flags: 0x10000 shadow, 0x20000 underline, 0x40000 mono
+00432114 GNW_text_height
+00432120 GNW_text_width                 // sum(width+spacing)
+00432164 GNW_text_char_width
+00432178 GNW_text_mono_width
+00432198 GNW_text_spacing
+004321a4 GNW_text_size
+004321b8 GNW_text_max
+00432298 win_register_button
+004326e0 win_register_button_func
+0043a400 GNW_input_init                 // pause key 0x119 (Alt-P), screendump key 0x12e (Alt-C)
+0043a594 GNW_process_special_key        // pause / screendump keys
+0043a6fc add_bk_process
+0043a74c remove_bk_process
+0043a784 pause_game
+0043a7c0 default_pause_window           // "Paused"
+0043a8bc register_pause                 // graf_init: (-1, NULL) -> pause key disabled
+0043a8d4 dump_screen
+0043a9d0 default_screendump             // writes scr%.5d.bmp (8bpp BMP)
+0043ace0 register_screendump
+0043acf8 get_time_ms                    // timeGetTime
+0043c150 win_init
+0043c668 win_exit
+0043c734 win_add                        // calls rand() twice (texture offsets)
+0043c960 win_delete
+0043ca60 maybe_win_border
+0043cd44 win_print                      // 0x2000000 = no background fill
+0043d080 maybe_win_box
+0043d1c0 win_fill
+0043d454 win_draw
+0043d4d0 GNW_win_refresh
+0043da90 win_refresh_rect               // refresh all windows in rect
+0043dd7c GNW_find
+0043dda4 win_get_buf
+0043de0c win_width
+0043de28 win_height
+004428b4 buf_to_buf
+004428e4 trans_buf_to_buf               // skips source pixels == 0
+00442a5c buf_fill
+00442d90 GNW_mmx_init
+00442e24 init_mode_640_480
+00442ecc GNW95_init_mode_ex             // (w,h,bpp)
+00442f68 GNW95_init_mode                // bpp 8
+00442f78 GNW95_init_window
+00443038 GNW95_init_DirectDraw          // exclusive fullscreen, SetDisplayMode, primary surface only, 8-bit palette
+0044324c GNW95_reset_mode
+004432b4 GNW95_SetPaletteEntry
+004433ac GNW95_SetPaletteEntries
+00443608 GNW95_SetPalette               // PALETTEENTRY = (v<<2, PC_NOCOLLAPSE)
+0044372c GNW95_GetPalette
+004438f0 GNW95_ShowRect                 // Lock primary (DDLOCK_WAIT), copy, Unlock; no vsync
+0044adb0 buf_to_buf_impl
+0044aed5 trans_buf_to_buf_impl
+004444b0 mem_malloc
+00444630 mem_free
+0043f134 db_fopen
+0043f4c0 db_fread
+0043fa10 db_fgetc
+0043fd08 db_fseek
+0043fe94 db_ftell
+00441284 db_filelength
+00441e50 db_fclose
+# ---- CRT used by graphics ----
+004514fc fopen
+00451b5f fread
+00451958 fwrite
+0045172e fclose
+0045266a fgetc
+004527e3 fputc
+00451dc4 memcpy
+00451940 memset
+004184d0 dbg_malloc                     // (size, file, line)
+00418511 dbg_calloc
+004185aa dbg_realloc
+0041863d dbg_free
+00452231 qsort
+# ---- globals ----
+0045c000 g_cmap                         // GNW master palette 6-bit (768)
+00464b50 g_systemCmap                   // palette last sent to hardware
+00464e50 g_gammaTable                   // 64 bytes, identity
+00465290 g_mappedColor                  // 256
+00495390 g_colorTable                   // 32768 RGB555 -> idx; [0]=255; never 0
+00475390 g_intensityColorTable          // unused by game
+00465390 g_colorMixAddTable             // unused by game
+00485390 g_colorMixMulTable             // unused by game
+00464e90 g_blendTables                  // 256 ptrs
+00464b10 g_colorPaletteStack            // 16 ptrs (unused)
+0049d390 g_colorPaletteStackCount
+0046059c g_game_palette                 // current game palette (6-bit); holds 8-bit pcx pal after own-palette screens
+0046089c g_default_palette              // pristine COLOR.PAL palette, entry 0 = black
+00460564 g_remap_tables                 // 10 x ptr(256)
+00460bd0 g_remap_r                      // 10 x u8 percent
+00460bda g_remap_g
+00460be4 g_remap_b
+00460bac g_winz_bitmap                  // WINZ.PCX 72x72 remapped
+00460bb4 g_winz_w
+00460bb8 g_winz_h
+00460bb0 g_sprite_queue                 // 400 x 24 bytes {type,x,y,frame,colour,table}
+00460bbc g_sprite_queue_count
+00460bc0 g_field_bitmap                 // 640x480 FIELDn remapped
+00460bc4 g_graf_target                  // current draw buffer
+00460bc8 g_graf_target_pitch            // 640
+00460ba8 g_graf_target_height           // 480
+00460bcc g_background                   // 640x480 background buffer
+0046058c g_clip_left
+00460590 g_clip_top
+00460594 g_clip_right                   // exclusive
+00460598 g_clip_bottom                  // exclusive
+00464a70 g_screen_w                     // 640
+00464a6c g_screen_h                     // 480
+00464ae4 g_main_window
+004642a4 g_stat_frames_presented
+004642a8 g_stat_sprites_drawn
+004617c4 g_datafile_palette             // 8-bit palette of last loaded PCX
+0045be34 g_datafile_loader              // NULL
+0045be38 g_datafile_mangler             // identity
+00461b6c g_ani_frames                   // 12-byte {hotx,hoty,w,h,bitmap}
+00461b68 g_ani_frame_count
+00461b60 g_ani_frame_capacity
+00461b5c g_ani_seqs                     // 60-byte entries, count at +0x34, states at +0x38
+00461b58 g_ani_seq_count
+00461b54 g_ani_seq_capacity
+00461b70 g_ani_framebytes_allocated
+00461b64 g_ani_framebytes_saved
+00461ac4 g_ani_file                     // current file being loaded (0x7c bytes)
+0046055d g_cursor_next_blink            // time() seconds
+00460559 g_cursor_blink_state
+00464994 g_game_frame_counter           // ++ per game_frame; HURRY blink (&4), sparkles
+004646ac g_game_paused
+0045be3c g_kface_player                 // -1 none; joystick cheat draws "kface" on that player
+004621e8 g_true_color_timer_ms          // V32*50 at round start; team play shows own colours while > 0
+004621cc g_goldman_sparkles             // 100 x {active,x,y,state}
+004621ec g_goldman_state_count
+0045be40 g_goldman_seq
+004621f0 g_goldman_last_frame
+00460ba0 g_remapedit_index
+00460ba4 g_remapedit_open
+00460b9c g_remapedit_window
+0045c4b0 g_GNW95_DDObject
+0045c4b4 g_GNW95_DDPrimarySurface
+0045c4b8 g_GNW95_DDRestoreSurface
+0045c4bc g_GNW95_DDPrimaryPalette
+0045c4e0 g_GNW95_isActive
+0049d810 g_fonts                        // 10 x 20 bytes {num,height,spacing,info*,data*}
+0049da90 g_curr_font
+0045c378 p_text_to_buf
+0045c37c p_text_height
+0045c380 p_text_width
+0045c384 p_text_char_width
+0045c388 p_text_mono_width
+0045c38c p_text_spacing
+0045c390 p_text_size
+0045c394 p_text_max
+0045c46c GNW_wcolor                     // 6 x RGB555 {0x294a,0x3def,0x2108,0x5294,0x7feb,0x7c00}
+0045c310 g_mouse_default_shape          // 8x8 arrow
+004a37b4 g_pause_key                    // -1 after graf_init
+004a37b0 g_screendump_key               // 0x12e Alt-C
+004a37bc g_pause_func
+004a3798 g_screendump_func
+00497498 col_dkgray_2108                // colorTable[0x2108] idx 142
+00497cda col_gray_294a                  // colorTable[0x294a] idx 205
+00497f7a col_green_2bea                 // colorTable[0x2bea] idx 133
+00497f8f col_cyan_2bff                  // colorTable[0x2bff] idx 97
+0049a390 col_dkred_5000                 // colorTable[0x5000] idx 248
+0049a624 col_ltgray_5294                // colorTable[0x5294] idx 178
+0049d0da col_ltred_7d4a                 // colorTable[0x7d4a] idx 254
+0049d37a col_yellow_7fea                // colorTable[0x7fea] idx 182
+0049d38f col_white_7fff                 // colorTable[0x7fff] idx 72

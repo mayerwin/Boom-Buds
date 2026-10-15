@@ -1,0 +1,13 @@
+# Copy to local-config.ps1 to override discovery; that file is gitignored.
+$LocalJdkPath = $null  # e.g. 'D:\Program Files\Android\Android Studio\jbr'
+$LocalSdkPath = $null  # e.g. 'C:\Users\yourname\AppData\Local\Android\Sdk'
+
+# Optional: absolute path to an existing service-account JSON. This account
+# must be granted access to Boom Buds in Play Console first.
+# No credential is copied; scripts pass only its path to Gradle.
+# PLAY_SERVICE_ACCOUNT_FILE overrides this setting when present.
+$LocalPlayServiceAccountPath = $null
+
+# Optional local publishing tracks. Default: alpha (closed testing).
+# Explicit -Tracks, then PLAY_TRACKS / PLAY_TRACK, override this setting.
+$LocalPlayTracks = $null

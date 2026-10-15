@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Boom Buds app icon: the logo's cartoon bomb on a sunset tile (content inside the maskable safe zone) -->
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0.4" y2="1">
+      <stop offset="0" stop-color="#2a1660"/>
+      <stop offset="0.55" stop-color="#7b2b8f"/>
+      <stop offset="1" stop-color="#ff7a3c"/>
+    </linearGradient>
+    <radialGradient id="bomb" cx="0.36" cy="0.32" r="0.8">
+      <stop offset="0" stop-color="#6c7194"/>
+      <stop offset="0.45" stop-color="#2a2d45"/>
+      <stop offset="1" stop-color="#0c0d18"/>
+    </radialGradient>
+    <radialGradient id="glow">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.35" stop-color="#ffd23f" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#ff7a1f" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#sky)"/>
+  <g fill="#ffd23f" opacity="0.8">
+    <circle cx="96" cy="120" r="5"/><circle cx="412" cy="96" r="4"/><circle cx="430" cy="300" r="5"/><circle cx="80" cy="330" r="4"/>
+  </g>
+  <path d="M 318 176 q 22 -32 50 -24 t 34 -42" fill="none" stroke="#2b0f45" stroke-width="22" stroke-linecap="round"/>
+  <path d="M 318 176 q 22 -32 50 -24 t 34 -42" fill="none" stroke="#e9c48a" stroke-width="10" stroke-linecap="round"/>
+  <circle cx="246" cy="292" r="128" fill="#2b0f45"/>
+  <circle cx="246" cy="292" r="115" fill="url(#bomb)"/>
+  <ellipse cx="206" cy="246" rx="36" ry="23" transform="rotate(-35 206 246)" fill="#fff" opacity="0.55"/>
+  <circle cx="232" cy="222" r="8" fill="#fff" opacity="0.7"/>
+  <rect x="297" y="160" width="50" height="36" rx="10" transform="rotate(40 322 178)" fill="#6b6f8f" stroke="#2b0f45" stroke-width="9"/>
+  <circle cx="402" cy="110" r="44" fill="url(#glow)"/>
+  <path d="M 402 72 L 412 100 L 440 110 L 412 120 L 402 148 L 392 120 L 364 110 L 392 100 Z" fill="#fff6c8"/>
+</svg>

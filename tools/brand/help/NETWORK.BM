@@ -1,0 +1,55 @@
+**************************************************************
+Boom Buds Network Notes
+**************************************************************
+Boom Buds plays network games on your local network.
+
+One computer runs the Boom Buds LAN server and every
+player opens the game from its address.  The server
+only introduces the computers to each other: the
+game itself flows directly between the browsers, so
+on a LAN there is no noticeable delay.
+
+It is not advisable to rapidly press the <ESC> key 
+during transition screens since you would leave the
+game.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Network Game Rules
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+When you are a server, the maximum number of clients
+that can attach to you is four.
+
+The server chooses the level and the number of wins,
+starts the matches and advances the score screens.
+Each computer sets up its own players (keyboard
+layouts and gamepads) on the control selection screen;
+the players of the other computers show up as 'NET.'
+Only the server can add computer players.
+
+All the features of a single computer game are
+available in network games: trampolines, the swap
+disease, the random powerup, hits on the head...
+
+Diseases:  All diseases can be destroyed during a
+  network game, whatever the 'Diseases Can Be
+  Destroyed' option says.
+
+Gold Bud:  The Gold Bud (Roulette Wheel) option is
+  not available in Network play.
+
+Artificial Intelligence:  The Ctrl-A shortcut to select 
+  all AI players in the Controller Setup Screen is not 
+  supported in Network play.
+
+Lost players:  If a computer leaves the game, its
+  players stand still until the round ends, or play
+  on as computer players when 'Lost net players revert
+  to AIs' is set to Yes on the server.
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Performance Hints
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+A wired network gives the smoothest games.  Wi-Fi works
+well too; if a game stutters, move closer to the access
+point.

@@ -1,0 +1,210 @@
+# match-flow: proposed names (functions + globals). Format: <hexaddr> <name> // comment
+# ---- settings / options.c ----
+00406086 options_init                    // existing name; asks memory model if options.ini missing, else options_load_ini+valuelst_load
+0040614a options_default_keys            // keydef set0 = up200,rt205,dn208,lt203,act1 57(space),act2 28(enter); set1 = R,G,F,D,S,A(0x1e)/Q(0x10)
+00405de3 options_save                    // registered as deinit (atexit); writes options.ini in fixed order (see doc)
+00406238 options_load_ini                // existing name; stricmp keys, atoi values, clamps
+00406a2a options_defaults                // existing name; levelno=0, modem 2/19200/3/"555-1212", keys, BASIC.SCH, then load_ini, register save
+00406dde level_select_screen             // per-match level + wins/kills-to-win picker (skipped in campaign)
+004080dc settings_screen                 // main menu "Options": 19 rows (team play .. adjust audio)
+004076fe options_cycle_playtime          // 60,90,120,150,180,240,300,600,1001(inf); unknown value -> V100
+004078fe options_playtime_str            // "Infinite" or "%u:%02u"
+0040798b options_modem_dialog
+004074dc options_nodename_dialog
+00407542 options_audio_placeholder       // "Audio Adjustment screen will be here..."
+0040ff57 net_save_local_settings         // saves 8 settings before a net session
+0040ffbc net_restore_local_settings      // restores them after
+# ---- match / round flow ----
+0042a3f6 match_run                       // existing name 'results_screen' is a misnomer: whole match loop (setup, rounds, end screens)
+0042a191 game_frame                      // per-frame callback (registered with GNW 0x43a6fc), not a decompiled function (LAB)
+0042a16f game_frame_set_paused           // DAT_004646ac = arg; 1 = frame callback returns immediately
+00410f81 match_setup                     // scheme_load, roulette, slot reset, score reset/shuffle, controller-setup screen, level select
+00410b6e round_start                     // existing name maybe_level_load: campaign stage, level pick, map build, round init, music, timer
+00411cf8 net_set_new_session_flag        // DAT_00460244 = 1
+0042b9ce main_menu                       // existing name
+0042b0ce net_host_screen
+0042b47d net_join_screen
+004148ac screen_min_wait_seconds         // 1 local, V13 (3) in net
+00413cb0 sleep_ms                        // sleeps arg/100 * 100 ms, pumping events
+00413d01 debug_enabled                   // returns DAT_00460260 = atoi(getenv("KWD"))
+0040c06a net_mode                        // DAT_00460058: 0 local, 1 client, 2 server
+0042741e tunes_play_id                   // play music by SOUNDLST id (1020 setup, 1130 round end, 1040 net, 1010 menu)
+00427bfb sound_play_voice_group          // random least-played announcer from a group (1700 draw, 2000 winner)
+004148e5 graf_show_random_glue           // existing name; glue<rand()%V16>.plt background for menu screens
+00413fb9 draw_press_f1_help
+0040fb90 net_send_forced_draw            // msg 0x26
+0040f064 net_send_screen_key             // msg 0x20: server injects 0x385/0x386/0x387/0x388 "continue" keys into clients
+0043acf8 get_time_ms                     // timeGetTime()
+0043a6fc gnw_add_background_proc         // registers a per-loop callback (game_frame 0x42a191)
+0043a74c gnw_disable_background_proc     // sets the 'disabled' bit of a registered callback
+004100b9 net_send_start_positions        // msg 0x35 (server)
+# ---- round timer (input/hud region) ----
+00410465 timer_init                      // timer_set(V100+1)
+00410494 timer_set_playtime              // DAT_004601a8 = s, DAT_004601ac = s*1000
+004104c2 timer_reset                     // stop, elapsed=0, remaining_net = playtime
+004104f0 timer_start
+00410522 timer_stop
+0041054a timer_set_remaining_net
+00410578 timer_get_remaining_s           // 1001 if infinite
+004105b0 timer_get_elapsed_s
+004105d2 timer_update_and_draw           // existing name maybe_hud_init is wrong; computes remaining, draws M:SS / infinity
+0041087d round_time_up                   // 1 if time ran out (never when playtime==1001)
+# ---- players / slots (you.c) ----
+00420f07 players_update_all              // per frame: delays, player_update_anim x10, gold sparkles, HUD "S:%d K:%d", alive counters
+00420d4e goldman_spawn_sparkle
+00420e39 goldman_sparkles_update         // existing name goldman_init is wrong: draws/advances the 100 sparkle slots
+004214bc players_round_init              // positions, lives=1, powerups V50+i (+gold bonus), fuse, speed, colours
+00421793 match_reset_scores_and_shuffle  // score/kills=0, random_start shuffle (200 swaps)
+00421198 slots_all_off
+004211e7 slots_net_to_off
+0042123f slots_assign_default_inputs     // joysticks, keyboard (assign_keyboards), slot 2 AI
+004218e7 slots_count_active
+00421947 round_ingame_count              // DAT_004621d8
+00421969 round_alive_count               // campaign:2, team: teams alive, else players alive
+004219b0 round_get_winner                // -1 = draw ("undetermined"), writes "Player %u"/"Team %u"
+00421ac8 player_get_score                // int16 +0x6a
+00421b0f player_get_kills                // int16 +0x6c
+00421b56 player_award_points             // existing name; +pts to round winner, copy to teammates
+00421c71 player_add_score
+004225be player_set_score                // net handler
+00422602 player_set_kills                // net handler
+00421dd2 slot_get_input                  // (slot, int* type, int* index)
+00421e33 slot_set_input                  // (slot, type, index)
+00421e80 slot_cycle_input                // OFF->AI->KEY0->KEY1->JOY0..->OFF (AI skipped on client/campaign)
+00422085 slots_count_input_conflicts
+00422154 slots_resolve_input_conflicts   // net client: turns duplicates OFF
+0042223e slots_count_sides               // active players, or active teams in team play
+004222e8 slot_net_player_lost            // lost_net_revert_ai: server makes it AI, else OFF
+004223e7 player_get_team                 // byte +0x54
+00422437 player_set_team
+0042247a slots_no_humans                 // 1 if every slot is OFF or AI
+004224e2 slots_save                      // saves inputs + team_play (attract/net)
+00422552 slots_restore
+0042288c slot_ai_to_off
+004228c4 player_is_active_alive
+00422928 slot_add_random_ai              // campaign: random OFF slot -> AI (100 tries)
+0041dcb2 player_start_death              // kill accounting (kills +-1, campaign AI points), scream, dying=1
+0041de63 player_die                      // existing name player_net_death: (victim, killer) random death anim, ignores NET/special states
+0041de04 net_rx_player_death             // handler; smallmemory forces anim 1
+0041dbfe player_drop_powerups            // on death: excess over V50+i scattered
+0041dfb6 player_give_disease             // swap disease (7) re-rolled in net games
+00421f7e player_head_hit                 // stun + lose V670+rand%V671 powerups; local games only
+00425107 power_reveal                    // over-powerful (5,6,11) relocation during first V102 s; local only
+004258e5 power_place_round               // random powerup (12) count forced 0 in net
+0042583b clear_start_area                // cell + 4 neighbours (non-solid) cleared, hidden powerups relocated
+00425704 cell_clear_relocate_power
+00404833 scheme_reparse                  // scheme_parse(schemefilename)
+# ---- gold bomberman roulette (teamring? region) ----
+004034bc goldman_roulette
+00403382 roulette_x                      // trunc(cos(pos*V1006*2pi/(V1004*6))*V1002+V1000)
+0040341f roulette_y                      // trunc(sin(pos*V1007*2pi/(V1004*6))*V1003+V1001)
+00403a9c goldman_get_roulette_result
+# ---- campaign / aliens ----
+00401085 campaign_load                   // existing name; parses "-C," lines of a .CAM file (two passes)
+00401312 campaign_reset_stage_index      // stage index = -1
+0040133f campaign_next_stage             // stage++, set scheme/level, shuffle; past end -> "Congratulations", state=10
+0040151b campaign_stage_setup            // AIs off, add N random AIs, spawn ghosts/rovers
+004015c6 campaign_select                 // "*.cam" picker, sets campaign mode
+004016da campaign_update                 // per frame: aliens, success/fail detection
+0040179f campaign_reset_clear_timer      // called whenever an AI thinks
+00401886 aliens_init                     // existing name
+004018c3 aliens_clear_all
+00401914 alien_alloc
+00401994 aliens_reset
+004017fa alien_cell_passable             // ghosts pass bricks, rovers need empty cells; no bombs
+004019c2 alien_spawn_random              // 200 tries, non-solid cell, no player within manhattan 3
+00401aae aliens_spawn_rovers             // type 1
+00401b05 aliens_spawn_ghosts             // type 2
+00401b5c alien_update                    // existing name aliens_create is wrong: move/turn/kill/draw one alien
+00401f76 aliens_update_all
+# ---- stats ----
+00402150 stats_load                      // existing name; bmstats.dat = 100 x int32 totals
+0040200c stats_save                      // (LAB) totals += session; writes bmstats.dat and bmstats.txt
+# ---- globals: settings ----
+00464998 g_opt_levelno                   // -1 random each round, 0..V35-1
+00464a7c g_opt_num_to_win
+00464974 g_opt_enclosement_depth         // 0..3 (rings = depth*2)
+00464930 g_opt_conveyor_speed            // 0..2 -> V190+n
+00464964 g_opt_team_play
+00464940 g_opt_stomped_bombs_detonate
+00464ae8 g_opt_random_start
+0046497c g_opt_win_by_kills
+004648bc g_opt_goldman
+004648c4 g_opt_schemefilename            // char[]
+00464948 g_opt_playtime                  // seconds, 1001 = infinite
+00464968 g_opt_assign_keyboards
+00464990 g_opt_diseases_destroyable
+00464928 g_opt_lost_net_revert_ai
+004648c0 g_opt_disable_game_music
+00464970 g_opt_modemport
+0046482c g_opt_modembaud
+004648b8 g_opt_modemirq
+00464830 g_opt_modemdial                 // char[]
+00464828 g_opt_netprotocol
+00464824 g_opt_smallmemory
+004645bc g_opt_keydefs                   // int[2][10]
+00464a74 g_diseases_will_recycle         // V122
+00464a78 g_diseases_multiply             // V123
+00464980 g_diseases_curable              // V124
+0046498c g_disease_cure_chance           // max(V125,1)
+00464988 g_diseases_time_limited         // V121
+# ---- globals: match / round state ----
+00464a68 g_match_state                   // 0 running, 1 match won, 2 aborted, 10 campaign complete
+0046499c g_cur_level                     // level of the current round (-1 = waiting for server)
+0046492c g_gold_id                       // slot index, or team colour 0/2 in team play; -1 none
+0045e02c g_roulette_result               // powerup index from roulette (-1 during spin)
+00464aec g_forced_draw                   // F10 this frame
+004646b4 g_intergame_nowait              // Alt-W, reset each match
+00464938 g_attract_mode
+004646b8 g_attract_saved_levelno
+004646b0 g_attract_saved_teamplay
+0046489c g_campaign_mode
+00464894 g_campaign_stage_status         // 0 running, 1 cleared, 2 failed
+004648b0 g_campaign_stage_index
+0045e010 g_campaign_stages               // 0x70-byte records
+0045e014 g_campaign_stage_count
+00464820 g_aliens_active
+004646c0 g_campaign_clear_ms
+0045e020 g_aliens                        // 100 x 0x98
+0045e01c g_alien_cur_type
+00460244 g_net_new_session
+00461bc4 g_players                       // 10 x 0x98 player records
+004621d8 g_round_ingame_count            // players (or teams) with alive flag (incl. dying)
+004621d4 g_round_alive_count             // alive, dying counted for first V25 death frames
+004621dc g_round_alive_teams
+004621e4 g_cnt_ingame_work
+004621d0 g_cnt_alive_work
+004621b4 g_team_ingame_seen              // int[2]
+004621bc g_team_alive_cnt                // int[2]
+004621e0 g_round_control_delay_ms        // V30*ref_ms = 1000
+004621e8 g_round_teamcolor_delay_ms      // V32*ref_ms = 2000
+004621cc g_gold_sparkles                 // 100 x {active,x,y,frame}
+0045be40 g_goldman_seq
+004621ec g_goldman_seq_len
+004621f0 g_goldman_last_frame
+0046460c g_start_x                       // int[10] cell x used at round init
+0046465c g_start_y                       // int[10]
+0046481c g_scheme_starts                 // 10 x {x,y,team}
+00464984 g_hurry_sound_played
+00464994 g_frame_counter
+00464958 g_frame_dt_ms                   // capped V31
+0046494c g_ref_frame_ms                  // 1000/V30 = 50
+0046496c g_last_frame_time
+004646ac g_game_frame_paused
+00460058 g_net_mode
+00460260 g_debug_kwd                     // atoi(getenv("KWD"))
+# ---- globals: timer ----
+004601a8 g_timer_playtime_s
+004601ac g_timer_total_ms
+004601b8 g_timer_elapsed_ms
+004601a0 g_timer_last_ms
+004601b4 g_timer_running
+004601a4 g_timer_remaining_s
+004601b0 g_timer_remaining_net_s
+004601bc g_timer_elapsed_s
+# ---- globals: stats ----
+0046442c g_stats_total                   // int[100] (bmstats.dat)
+0046429c g_stats_session                 // int[100]: 0 matches,1 games(rounds),2 frames,3 gfx req,4 bombs,5 deaths,6 AI deaths,7 bricks,8 pixels,9 hosted,10 joined,11-14 net io,15 attract,16 retrans,17/18 ghost bombs
+0045ed7c g_net_saved_settings            // 8 ints: win_by_kills, stomped, conveyor, team_play, enclosement, playtime, diseases_destroyable, lost_net_revert_ai
+0045b7d4 g_net_valuelst_ids              // 79 VALUELST ids pushed to clients
+0045b7bc g_roulette_table                // {0,1,3,8,4,13}

@@ -1,0 +1,35 @@
+{
+  "name": "boom-buds",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Boom Buds - a pixel-perfect web remake of a 1997 classic multiplayer bomb game, with P2P netplay and strong AIs.",
+  "type": "module",
+  "scripts": {
+    "start": "node tools/launch.ts",
+    "assets": "node tools/extract.ts",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lan": "node server/lan-server.ts",
+    "typecheck": "tsc --noEmit -p .",
+    "test": "vitest run",
+    "e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.0",
+    "@types/node": "26.6.5",
+    "@types/pngjs": "^6.0.5",
+    "@types/ws": "8.18.1",
+    "pngjs": "7.0.0",
+    "typescript": "7.0.2",
+    "vite": "8.3.4",
+    "vitest": "5.0.4"
+  },
+  "dependencies": {
+    "preact": "10.29.8",
+    "ws": "8.22.0"
+  },
+  "engines": {
+    "node": ">=22.18"
+  }
+}

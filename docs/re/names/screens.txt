@@ -1,0 +1,194 @@
+# screens.txt - proposed names for non-gameplay screen code (screens agent)
+# format: <hexaddr> <name> // comment
+#
+# ---- program flow ----
+0042be22 program_main                   // game_init(); title_screens(); main_menu(); win_exit()
+0042b060 title_screens                  // music 1000; iplogo+hslogo (skipped if KWD env); speech 2800; title; clear; restore palette
+0042a088 screen_show_pcx                // (name, wait): clear+flip, show DATA/RES/<name>.PCX with its OWN palette, flip; if wait: loop until Enter/Esc/Space or VALUELST12 s (time() based)
+0042b9ce main_menu                      // 7 items, bomb-trigger cursor, attract after V92 s idle, Ctrl-E x6 = editor
+0042a3f6 match_play                     // (was results_screen) whole match: setup screens, rounds (bk process 0x42a191), draw/results/victory screens
+00410f81 match_setup                    // roulette (gold), player input setup screen, options screen; attract-mode auto setup
+00406dde match_options_screen           // level (with preview) + wins-to-win selection, 2 items
+00406aa3 options_level_preview          // draws white frame + field crop + 5x5 sample tiles into background buffer (VALUELST 730)
+004034bc goldman_roulette_screen        // "Bonus game": ring vs wheel of 6 powerups; result -> 0x45e02c
+00403382 roulette_pos_x                 // trunc(V1000 + V1002*cos(pos*V1006*2*3.14159265/(V1004*6)))
+0040341f roulette_pos_y                 // trunc(V1001 - V1003*sin(pos*V1007*2*3.14159265/(V1004*6)))
+00403a9c roulette_get_result            // returns powerup index won by the gold player (-1 none)
+004080dc settings_screen                // main-menu "Options": 18 settings rows (VALUELST 745)
+004076fe settings_playtime_step         // (dir) cycles 60,90,120,150,180,240,300,600,1001(Infinite)
+004078fe settings_playtime_string       // "Infinite" or "%u:%02u"
+004074dc settings_edit_nodename         // win_get_str "Enter new node name:"
+00407542 settings_audio_placeholder     // "PLACEHOLDER!"/"Audio Adjustment screen will be here..." (unreachable item 18)
+0040798b settings_modem_dialogs         // port, IRQ, baud list, phone number
+00407f4f settings_choose_protocol       // list "Please select network protocol:"
+00407fee settings_memory_model          // yes/no then "Memory Model Changed!" and exit(0x14)
+00407b9d keydefs_screen                 // mouse-driven GNW buttons for 2 key layouts x 6 actions
+00407ad9 keydefs_capture_key            // progress-style window "Press key for '%s'", returns DirectInput scancode (Esc = 0)
+0040614a keydefs_set_defaults           // layout0: arrows+Space+Enter, layout1: R,G,F,D,S,A (A->Q on AZERTY)
+00407582 options_choose_scheme          // list of DATA\SCHEMES\*.SCH as "FILE: name"
+00406086 options_init                   // first run (no options.ini): memory-model list + HIGHMEM.BM/LOWMEM.BM viewer
+00406a2a options_defaults
+# ---- help / credits / dialogs ----
+0041302d help_view_file                 // (was graf_load_images) .BM text viewer with <IMGname> tags, 600x440 window
+00414235 help_choose_file               // list of *.BM files "Available help files:" loop
+0041431c help_screen                    // help_choose_file("*.BM") (online manual, F1)
+0041404b find_files_upper               // FindFirst/Next -> malloc'd array of strupr'd names, count via EDX
+00414173 free_string_array
+00414340 msgbox_ok                      // (line1, line2, fg, outline) WINZ dialog + " Ok " button; Enter/Esc/Space close
+0041456c msgbox_yes_no                  // same layout, " Yes "/" No "; Y/y/Enter/Space=1, N/n/Q/q/Esc=0
+00412987 confirm_exit                   // msg 10 yes/no; yes: stop music, speech 2600, Sleep 4000, exit(0)
+00413d45 debug_info_window              // Alt-D: mem/net/audio stats window
+00413fb9 draw_press_f1_help             // "Press F1 for help" centered at V790 (320,440), cyan
+0041485a list_select_dialog             // mouse_show; win_list_select(title,items,n,cb,x,y,color); mouse_hide
+00412e0c progress_set_title             // strcpy into 0x45bc5c ("Completion" buffer)
+00412e33 progress_window_update         // (percent) 360 x 8*fontH window at (150,200); closes at 100
+0041726b window_fill_winz               // nine-slice WINZ.PCX (72x72, 24px tiles) over a whole GNW window
+00416b43 blit_nine_slice
+00413bd6 graf_cursor                    // blinking bomber-dude cursor ("cursor1"), VALUELST 690 blink period
+004141f8 team_text_color                // team0 -> colorTable[31,31,31], team1 -> colorTable[31,10,10]
+0041672f player_text_color              // team play: team color; else rgb(min(31,R%/3),min(31,G%/3),min(31,B%/3)) of player remap
+00416867 player_text_outline_color      // white for player index 1 (black bomber) when no team play, else black
+004148ac screen_min_wait_secs           // 1 (local) or VALUELST 13 (net)
+004148e5 graf_show_random_glue          // glue<rand()%V16>.pcx remapped into background buffer
+00413cb0 delay_pumping                  // (ms) ms/100 x { Sleep(100); process_bk }
+00413d01 kwd_debug_level                // DAT_00460260 = atoi(getenv("KWD"))
+004127ff misc_init                      // valuelst/messages load; KWD env
+0042a015 net_server_bailed_msgbox       // "NOTE!"/"The server seems to have bailed out on this game!" once
+0042a16f game_set_paused                // DAT_004646ac: 1 = in-game bk process does nothing
+00429ff1 draw_watermark                 // decodes Atbash string at 0x45bf06 (empty in this build) - draws nothing
+00429f1a draw_watermark_impl
+# ---- graphics helpers used by screens ----
+00415ca4 graf_restore_background        // (was maybe_graf_lock) memcpy(target, bgbuf, 640*480) if bgbuf
+00415ce3 graf_clear                     // memset(target, 0, 640*480)
+00415c1f graf_flip                      // (was maybe_graf_flip) flush sprite queue then win_draw(main window)
+004151ad graf_target_background         // draw target := background buffer (0x460bcc)
+00415189 graf_target_screen             // draw target := main window buffer
+004151cc graf_load_pcx_to_target        // load PCX remapped to system palette, copy 640x480 into target
+004150f0 pcx_load_remapped              // pcx_load + remap pixels via colorTable(rgb>>3)
+0041bbbd pcx_remap_to_palette
+0041522d graf_show_pcx_own_palette      // load PCX raw, set its palette (>>2), copy into target
+004150bd palette_restore_game           // copy game palette 0x46089c -> 0x46059c and set it
+0042c534 palette_set                    // applies gamma table, GNW set palette
+00415920 sprite_queue                   // (x, y, frameno) type 0 sprite drawn at flip time (max 400)
+00415b22 sprite_queue_flush
+004102b7 input_get_menu_key             // injected-key FIFO, joystick edges (->arrows/Enter), else GNW get_input
+00410401 input_push_menu_key            // network-injected keys (0x385..0x388)
+0041043c input_flush
+# ---- player input/team helpers used by setup/results ----
+00421dd2 player_get_input               // (p, &type, &dev) type: 0 OFF,1 AI,2 KEY,3 JOY,4 NET
+00421e33 player_set_input               // (p, type=DL, dev=BL)
+00421e80 player_cycle_input             // OFF->AI->KEY0->KEY1->JOY0..->OFF (AI skipped on net client/campaign)
+004223e7 player_get_team
+00422437 player_set_team
+00422085 players_count_input_conflicts  // same KEY/JOY device on two players
+00422154 players_resolve_input_conflicts
+0042223e players_count_sides            // active players, or distinct teams in team play
+0042123f players_assign_default_inputs  // JOY n if present, else KEY0 for first (if V14/assign_keyboards), player 2 -> AI
+00421198 players_all_off
+004211e7 players_net_to_off
+004224e2 players_save_inputs            // attract-mode backup (also team-play flag)
+00422552 players_restore_inputs
+0042247a players_no_humans              // 1 if every player is OFF or AI
+00421ac8 player_get_score               // short at +0x6a (victories)
+00421b0f player_get_kills               // short at +0x6c
+004219b0 round_winner_name              // "Player %u"/"Team %u"/"undetermined"; returns index or -1
+0041087d round_time_up
+00421793 players_reset_match            // scores(+0x6a)/kills(+0x6c) := 0; if random start: 200 random swaps of start slots
+0042a191 game_frame_bk                  // GNW background process running one in-game frame (engine spec)
+# ---- network screens (layout only) ----
+0042b0ce net_start_game_screen          // server: "Connected network players:" 4 client slots
+0042b47d net_join_game_screen           // client: "Available net games:" 10 server slots
+0040c839 net_connect                    // CFG netonoff check, protocol list, "Connecting network object..."
+# ---- campaign (hidden) ----
+004015c6 campaign_select_screen         // 'C' x5 on setup: list DATA\RES\*.CAM
+0040133f campaign_next_level_msgbox     // "Prepare to begin Campaign!"/"Congratulations!"
+# ---- editor ----
+0040330e editor_enter                   // saves/clears team play, editor_main_menu, restores
+00403184 editor_main_menu
+0040234e editor_draw_title              // "Atomic Bomberman Level Editor" centered x=320 y=10
+004028d2 scheme_editor_screen           // (was team_ring_draw) mouse/keyboard scheme grid editor
+004022a1 editor_draw_grid
+00402206 editor_tile_frame              // (was tiles_load_level_seqs) frame of "tile %d blank/solid/brick"
+004023a2 editor_power_prompts
+# ---- audio wrappers used by screens ----
+0042741e music_play                     // (SOUNDLST id) stop current tune, play new (always restarts)
+00427342 music_stop
+00427bfb speech_play_group              // one-shot: least-played random member of consecutive ids from base
+# ---- GNW library (Fallout-1 GNW) ----
+0043c150 win_init
+0043c668 win_exit
+0043c734 win_add                        // (x,y,w,h,color,flags)
+0043c960 win_delete
+0043d454 win_draw
+0043dda4 win_get_buf
+0043de0c win_width
+0043de28 win_height
+00432298 win_register_text_button       // (win,x,y,enter,exit,down,up,text,flags) w=textW+16 h=fontH+6
+0042e938 win_get_str                    // (dest,maxlen,title,x,y) OK(Enter)/Cancel(Esc)
+0042ede0 win_yes_no
+0042db80 win_list_select
+0042dbcc win_list_select_at
+0043a508 get_input                      // -1 none, -2 mouse button event (mask 0x33), else key code
+0043a56c process_bk
+0043a6fc add_bk_process
+0043a74c remove_bk_process
+0043a784 gnw_pause                      // Alt-P (0x119): "Paused" window until Esc
+0043a7c0 gnw_default_pause_window
+0043a8d4 gnw_screendump                 // Alt-C (0x12e)
+00431178 mouse_show
+00431360 mouse_hide
+00431e9c text_font                      // only called with 6 (FONT6.FON) by graf_init
+0043acf8 get_time_ms                    // timeGetTime
+00451e3e time_seconds                   // C time()
+00452012 sleep_ms
+# ---- globals ----
+00460260 g_kwd_debug                    // atoi(getenv("KWD")); nonzero skips logos/quit speech, enables debug keys
+00464938 g_attract_mode
+00464934 g_menu_idle_start_ms
+0046492c g_gold_player                  // -1 none; player index, or 0/2 for team 0/1 in team play
+00464998 g_level                        // -1 = random each game
+00464a7c g_wins_to_win
+00464964 g_team_play
+00464ae8 g_random_start
+00464930 g_conveyor_speed               // 0..2 Low/Medium/High
+00464940 g_stomped_bombs_detonate
+0046497c g_win_by_kills
+004648bc g_gold_bomberman
+00464974 g_enclosement_depth            // 0..3
+004648c4 g_scheme_filename
+00464948 g_play_time_secs               // 1001 = infinite
+00464968 g_assign_keyboard
+00464990 g_diseases_destroyable
+00464928 g_lost_net_revert_ai
+004648c0 g_disable_game_music
+00464824 g_small_memory
+00464a68 g_match_end                    // 0 continue, 1 match won, 2 aborted, 10 campaign finished
+00464aec g_round_aborted_f10
+004646b4 g_auto_continue                // Alt-W in game: post-round screens auto-advance after 6 s
+0046489c g_campaign_mode
+00464894 g_campaign_round_state
+004646ac g_game_paused
+004646b8 g_attract_saved_level
+004646b0 g_attract_saved_team_play
+00460bcc g_bg_buffer                    // 640x480 background buffer
+00460bc4 g_draw_target
+00464ae4 g_main_win
+0046059c g_cur_palette
+0046089c g_game_palette
+00460bac g_winz_bitmap
+00460559 g_cursor_blink_state
+0046055d g_cursor_next_blink_time       // time() seconds
+0045e0b8 g_optscr_level
+0045e0b4 g_optscr_wins
+0045e024 g_roulette_wheel_pos
+0045e038 g_roulette_ring_pos
+0045e028 g_roulette_dir                 // +1/-1
+0045e030 g_roulette_wheel_steps
+0045e03c g_roulette_ring_steps
+0045e034 g_roulette_state               // 0 spinning, 1 stopping, 2 done
+0045e02c g_roulette_result
+0045b7bc g_roulette_prizes              // int[6] = {0,1,3,8,4,13} bomb,flame,kick,goldflame,skate,clog
+0045b914 g_scancode_names               // char*[0x59]
+00461bc4 g_players                      // 10 x 0x98 bytes; +0x10 input type, +0x11 device, +0x54 team, +0x6a score, +0x6c kills
+004648a4 g_cell_w                       // 40
+004648a0 g_cell_h                       // 36

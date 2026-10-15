@@ -1,0 +1,22 @@
+node_modules/
+dist/
+tmp/
+test-results/
+playwright-report/
+*.log
+.DS_Store
+Thumbs.db
+
+# Android TV app: generated outputs and per-machine configuration
+android/.gradle/
+android/**/build/
+android/local.properties
+android/.idea/
+android/*.iml
+android/publishing/local-config.ps1
+android/publishing/releases/
+
+# Private signing keys, Play API credentials and release counters (back them up, never commit)
+android/publishing/secrets/
+*.keystore
+*.jks

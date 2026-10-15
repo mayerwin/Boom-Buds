@@ -1,0 +1,25 @@
+{
+  "name": "Boom Buds",
+  "short_name": "Boom Buds",
+  "description": "Explosive party game for up to 10 players: local, LAN or online with a room code, plus computer players.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#140c2e",
+  "theme_color": "#140c2e",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
