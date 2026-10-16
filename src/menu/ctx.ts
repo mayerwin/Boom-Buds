@@ -6,6 +6,7 @@ import type { Game } from '../app/Game.ts';
 import type { MenuArt } from './art.ts';
 import type { NetSession } from '../net/netSession.ts';
 import type { MatchParams } from '../screens/match.ts';
+import type { JoinHook } from './nav.ts';
 
 export type ScreenId = 'home' | 'local' | 'network' | 'lobby' | 'controls' | 'options' | 'howto';
 
@@ -30,8 +31,8 @@ export interface MenuContext {
   net: NetSession | null;
   setNet(n: NetSession | null): void;
   save(): void;
-  /** see a gamepad button press before the menu navigation does (true = consumed) */
-  setPadHook(h: ((padOrder: number, button: number) => boolean) | null): void;
+  /** a line-up is open: holding a gamepad's button adds a player (null: closed) */
+  setJoinHook(h: JoinHook | null): void;
 }
 
 export const Ctx = createContext<MenuContext>(null as unknown as MenuContext);

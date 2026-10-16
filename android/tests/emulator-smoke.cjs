@@ -1,8 +1,9 @@
 // The debug APK on a Google TV emulator, played with a virtual TV remote and a virtual gamepad (real Linux input
 // devices, so the events go through Android's input stack, MainActivity and tv.js):
-//   the remote and the pad show up as gamepads; the remote opens Local Game, where the pad is player 1 and
-//   the remote is added as player 2; a round starts; both move their bombers, the remote drops a bomb; the
-//   effects play through native SoundPool;
+//   the remote and the pad show up as gamepads; the remote opens Local Game, where the pad is player 1, a short
+//   OK of the remote is a menu press and a held one adds the remote as player 2, LB held on the pad adds a player
+//   on its left half (whose removal gives the whole pad back); a round starts; both move their bombers, the
+//   remote drops a bomb; the effects play through native SoundPool;
 //   Back pauses (the round stops), Back resumes; quitting returns to the lobby; Back leaves the menus and,
 //   on the main screen, the app; the game canvas is drawn at the WebView's full physical resolution.
 // Usage: BB_QA_SERIAL=emulator-5556 node android/tests/emulator-smoke.cjs [apk]
@@ -61,21 +62,28 @@ async function main() {
     assert.match((await app.snapshot()).focused, /Local Game/);
     await input.key(REMOTE, 'DPAD_CENTER');
     await app.waitFor((s) => s.heading === 'Local Game', 'Expected the Local Game lobby');
-    // player 1 is the gamepad; the remote's OK does not join; Add player picks the remote; a computer player
+    // player 1 is the gamepad; a short OK of the remote is a menu press, holding OK joins the remote; holding the
+    // gamepad's LB brings a third player on its left half, whose ✕ gives player 1 the whole gamepad back
     const lineup = () => app.evaluate(`[...document.querySelectorAll('#menu-root .pcard')].map(c=>c.innerText.replace(/\s+/g,' ').slice(0,60))`);
+    const stored = () => app.evaluate(`JSON.parse(localStorage.getItem('boombuds.settings.v1')).localPlayers`);
+    const PAD_ID = `pad:0:BB QA Pad ${PAD}`;
     const cards0 = await lineup();
     await app.evaluate('document.activeElement.blur()'); // (OK on a focused button clicks it)
     await input.key(REMOTE, 'DPAD_CENTER');
     await sleep(600);
-    assert.equal((await lineup()).length, cards0.length, "the remote's OK does not join: " + JSON.stringify(await lineup()));
-    const focusButton = (scope, re) => app.evaluate(`(()=>{const b=[...document.querySelectorAll('${scope} button')].find(b=>${re}.test(b.textContent));b.focus();return !!b;})()`);
-    await focusButton('#menu-root', /Add player/);
-    await input.key(REMOTE, 'DPAD_CENTER');
-    for (let i = 0; i < 30 && !(await app.evaluate("!!document.querySelector('.modal-wrap')")); i++) await sleep(150);
-    assert.ok(await app.evaluate("!!document.querySelector('.modal-wrap')"), 'Add player opens the controls');
-    await focusButton('.modal-wrap', /TV remote/);
-    await input.key(REMOTE, 'DPAD_CENTER');
+    assert.equal((await lineup()).length, cards0.length, "a short OK does not join: " + JSON.stringify(await lineup()));
+    await app.evaluate('document.activeElement.blur()');
+    await input.key(REMOTE, 'DPAD_CENTER', 2000); // (the emulator draws a few frames a second: a generous hold)
     await sleep(600);
+    assert.equal((await lineup()).length, cards0.length + 1, 'holding OK joins the remote: ' + JSON.stringify(await lineup()));
+    assert.deepEqual(await stored(), [PAD_ID, 'pad:0:TV remote']);
+    await input.key(PAD, 'BUTTON_L1', 2600);
+    await sleep(600);
+    assert.deepEqual(await stored(), [`padR:0:BB QA Pad ${PAD}`, 'pad:0:TV remote', `padL:0:BB QA Pad ${PAD}`], 'LB held: the left half for a third player');
+    await app.evaluate(`[...document.querySelectorAll('#menu-root button')].find(b=>b.getAttribute('aria-label')==='remove Player 3').click()`);
+    await sleep(600);
+    assert.deepEqual(await stored(), [PAD_ID, 'pad:0:TV remote'], 'the whole gamepad back to player 1');
+    const focusButton = (scope, re) => app.evaluate(`(()=>{const b=[...document.querySelectorAll('${scope} button')].find(b=>${re}.test(b.textContent));b.focus();return !!b;})()`);
     await app.evaluate(`[...document.querySelectorAll('#menu-root button')].find(b=>/Add computer player/.test(b.textContent)).click()`);
     await sleep(300);
     await check('lobby', { cards: await lineup() });
@@ -84,9 +92,13 @@ async function main() {
     await input.key(REMOTE, 'DPAD_CENTER');
     await app.waitFor((s) => s.round, 'Expected a round', 20000);
     const slots = await app.evaluate(game(`g.session.slots.slice(0,4).map(s=>s.type+':'+(s.ctl||''))`));
-    assert.deepEqual(slots.slice(0, 3), ['2:pad-0', '2:pad-1', '1:'], 'gamepad, remote, computer: ' + slots);
+    assert.deepEqual(slots.slice(0, 3), [`3:${PAD_ID}`, '3:pad:0:TV remote', '1:'], 'gamepad, remote, computer: ' + slots);
     // wait for the round's start (the bombers can move)
     await sleep(3500);
+    // players 1 and 2 cannot die during the test (their own trigger bombs, the computer players' bombs): the round
+    // must outlive it
+    const guard = () => app.evaluate(game('[0,1].forEach((i)=>g.runner.s.players[i].invulnMs=30000)'));
+    await guard();
 
     // the gamepad moves player 1, the remote player 2 and drops a bomb; the effects play natively
     const pos = (i) => app.evaluate(game(`{x:g.runner.s.players[${i}].x,y:g.runner.s.players[${i}].y,bombs:g.runner.s.bombs.filter(b=>b.active===1).length,tick:g.runner.s.tick}`));
@@ -105,6 +117,7 @@ async function main() {
     // (while held) and B sets it off
     const p1 = (expr) => app.evaluate(game(`(p=>(${expr}))(g.runner.s.players[0])`));
     const owned1 = (type) => p1(`g.runner.s.bombs.filter(b=>b.active===1&&b.owner===p.id&&b.type===${type}).length`);
+    await guard();
     await p1('(p.counts[9]=1, p.counts[0]=Math.max(3,p.counts[0]))');
     input.down(PAD, 'BUTTON_A');
     await sleep(250);
@@ -118,6 +131,7 @@ async function main() {
     // the remote's OK: a bomb at once (its fuse made long here, so that player 2 outlives the test)
     const p2 = (expr) => app.evaluate(game(`(p=>(${expr}))(g.runner.s.players[1])`));
     const owned = (type) => p2(`g.runner.s.bombs.filter(b=>b.active===1&&b.owner===p.id&&b.type===${type}).length`);
+    await guard();
     await p2('(p.fuse=600, p.counts[0]=Math.max(3,p.counts[0]))');
     const sound0 = await audio();
     await input.key(REMOTE, 'DPAD_CENTER');

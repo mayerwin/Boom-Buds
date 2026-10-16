@@ -50,6 +50,49 @@ describe('TV controllers as gamepads', () => {
     expect(s.axes).toEqual([0.5, -1, 0, 0.25]);
   });
 
+  it('reads the right stick from Z / RZ, or from RX / RY on a gamepad without them (never a trigger at rest)', () => {
+    const { pads } = setup();
+    // a gamepad with triggers on RX / RY (at rest: -1) and its right stick on Z / RZ, centred
+    pads.input({ type: 'motion', device: pad, axes: { x: 0, y: 0, z: 0, rz: 0, rx: -1, ry: -1 } });
+    expect(pads.snapshot()[0]!.axes).toEqual([0, 0, 0, 0]);
+    const other: Device = { id: 13, name: 'Old pad', remote: false, bridged: true };
+    pads.input({ type: 'motion', device: other, axes: { x: 0, y: 0, rx: 0.5, ry: -0.75 } });
+    expect(pads.snapshot()[1]!.axes).toEqual([0, 0, 0.5, -0.75]);
+  });
+
+  it('takes the right stick from RX / RY when Z and RZ are triggers resting at -1, and those triggers as LT / RT', () => {
+    const { pads } = setup();
+    pads.input({ type: 'motion', device: pad, axes: { x: 0, y: 0, z: -1, rz: -1, rx: 0.5, ry: 0 } });
+    expect(pads.snapshot()[0]!.axes).toEqual([0, 0, 0.5, 0]);
+    pads.input({ type: 'motion', device: pad, axes: { x: 0, y: 0, z: 1, rz: -1, rx: 0, ry: 0 } });
+    const s = pads.snapshot()[0]!;
+    expect(s.axes).toEqual([0, 0, 0, 0]);
+    expect(pressed(s)).toEqual([6]);
+  });
+
+  it('keeps a quick tap of a d-pad on the hat axes, as a key tap', () => {
+    const { pads, advance } = setup();
+    pads.input({ type: 'motion', device: pad, axes: { x: 0, y: 0, hatX: 1, hatY: 0 } });
+    pads.input({ type: 'motion', device: pad, axes: { x: 0, y: 0, hatX: 0, hatY: 0 } });
+    expect(pressed(pads.snapshot()[0])).toEqual([15]);
+    advance(100);
+    pads.frame += 2;
+    expect(pressed(pads.snapshot()[0])).toEqual([]);
+  });
+
+  it('answers with the same snapshot within a display frame until an event comes', () => {
+    const { pads } = setup();
+    pads.input(key(pad, 'BUTTON_A', 'down'));
+    const a = pads.snapshot();
+    expect(pads.snapshot()).toBe(a);
+    pads.input(key(pad, 'BUTTON_B', 'down'));
+    const b = pads.snapshot();
+    expect(b).not.toBe(a);
+    expect(pressed(b[0])).toEqual([0, 1]);
+    pads.frame++;
+    expect(pads.snapshot()).not.toBe(b);
+  });
+
   it('makes one "TV remote" gamepad of all the remote\'s devices; OK is A', () => {
     const { pads } = setup();
     const seen: string[] = [];

@@ -291,6 +291,7 @@ export class Ui {
     this.keys.length = 0;
     this.injected.length = 0;
     this.app.flushInput();
+    this.input.resetPads();
   }
 
   /** Wait `ms` milliseconds while presenting the current picture (delay_pumping). */

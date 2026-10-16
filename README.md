@@ -37,8 +37,9 @@ gamepads and touch controls, online play without a server, and computer players 
 ## Features
 
 - **Up to 10 players** in a match, any mix of people and computer players.
-- **Up to 4 people on one device.** Keyboard (two layouts ready to use, or record your own), mouse, any USB or
-  Bluetooth gamepad, or on-screen touch controls. Two players can share a phone or tablet.
+- **The whole couch on one device.** Up to four players on one keyboard (four layouts ready to use, or record
+  your own), two on each USB or Bluetooth gamepad (one on each half), the mouse, or on-screen touch controls (two
+  players per phone or tablet). Players join by pressing their bomb key or holding a gamepad button.
 - **Network play with zero setup.** Games on your network show up by themselves; friends elsewhere join with a
   6-character room code or a link. Browsers connect directly to each other, and rollback netcode keeps a LAN
   game at about one frame of input delay, and internet games at full speed and in sync (tested with up to
@@ -60,9 +61,9 @@ gamepads and touch controls, online play without a server, and computer players 
 
 | | Where | How to start | Controls |
 |---|---|---|---|
-| 💻 | **Computer**<br>Windows, macOS, Linux, ChromeOS | Open **[mayerwin.github.io/Boom-Buds](https://mayerwin.github.io/Boom-Buds/)** in Chrome, Edge, Firefox or Safari | Keyboard (two players), mouse, USB or Bluetooth gamepads |
+| 💻 | **Computer**<br>Windows, macOS, Linux, ChromeOS | Open **[mayerwin.github.io/Boom-Buds](https://mayerwin.github.io/Boom-Buds/)** in Chrome, Edge, Firefox or Safari | Keyboard (up to four players), mouse, USB or Bluetooth gamepads (two players each) |
 | 📱 | **Phone or tablet**<br>Android, iPhone, iPad | Open the same address and hold the device sideways. *Add to Home screen* gives it an icon and the full screen | Touch (two players per device), Bluetooth gamepads or keyboard |
-| 📺 | **TV**<br>Android TV, Google TV | The Boom Buds app, in a free beta on Google Play: [three steps](#play-on-a-tv) | TV remote, Bluetooth gamepads, keyboard, mouse |
+| 📺 | **TV**<br>Android TV, Google TV | The Boom Buds app, in a free beta on Google Play: [three steps](#play-on-a-tv) | TV remote, Bluetooth gamepads (two players each), keyboard, mouse |
 | 🏠 | **Your own computer, offline**<br>LAN parties | [`Launch.bat` or `npm start`](#run-it-on-your-computer): the phones, tablets and computers of your network play from it, even without internet | All of the above |
 
 All of them play together: a network game can bring a TV, two laptops and a phone into the same match. The
@@ -90,11 +91,17 @@ which is why there are two steps; to invite someone, send the group's page: it l
 | On the TV | Move | Bomb | Special | Pause |
 |---|---|---|---|---|
 | Gamepad | stick or d-pad | A | B | Start |
+| Gamepad shared by two: left side | left stick or d-pad | LB | LT | Select |
+| Gamepad shared by two: right side | right stick | A or RB | B or RT | Start |
 | TV remote | arrows | OK | hold OK (when it has a use) | Back |
 | Keyboard | arrows, or E S D F | <kbd>.</kbd> or <kbd>A</kbd> | <kbd>,</kbd> or <kbd>Q</kbd> | Esc |
 
-Up to four people play on one TV; Back on the main screen leaves the app. Developers can build and install it
-themselves: [android/README.md](android/README.md).
+Players join in **Local Game** by holding a button of their gamepad (or OK on the remote) for a moment; a short
+press just works the menus. A second player on the same gamepad holds a button on their side of it (LB for the
+left side, A for the right side). The line-up is remembered: a player whose gamepad is off disappears from it
+and comes back with the gamepad. In the menus, the arrows always go to the nearest control; OK (A) goes into a
+player's card or starts changing a setting, then ← → change it and OK is done; Back (B) comes out. Back on the
+main screen leaves the app. Developers can build and install it themselves: [android/README.md](android/README.md).
 
 ## Run it on your computer
 
@@ -138,15 +145,28 @@ player to reach the number of wins set for the match takes it.
 |---|---|---|---|
 | Keyboard, left side | <kbd>E</kbd> <kbd>S</kbd> <kbd>D</kbd> <kbd>F</kbd> | <kbd>A</kbd> | <kbd>Q</kbd> |
 | Keyboard, right side | arrow keys | <kbd>.</kbd> | <kbd>,</kbd> |
+| Keyboard, middle | <kbd>I</kbd> <kbd>J</kbd> <kbd>K</kbd> <kbd>L</kbd> | <kbd>;</kbd> | <kbd>P</kbd> |
+| Numpad | <kbd>8</kbd> <kbd>4</kbd> <kbd>5</kbd> <kbd>6</kbd> | <kbd>0</kbd> | <kbd>Enter</kbd> |
 | Gamepad | stick or d-pad | A | B (Start pauses) |
+| Gamepad, left half (two players on one) | left stick or d-pad | LB | LT |
+| Gamepad, right half | right stick | A or RB | B or RT |
 | Mouse | point where to walk | left button | right button |
 | Touch screen | on-screen stick | A | B |
+
+Some keyboards cannot tell many keys held at once apart: four players on one keyboard depends on the keyboard.
+Gamepads have no such limit.
 
 **Special** stops a bomb you kicked, punches the bomb in front of you (with the boxing glove) and sets off
 trigger bombs. **Esc** pauses a round, in a network game for everybody: anyone can resume, and a 3, 2, 1
 countdown starts everybody at once.
 
-- To join a local game, press your bomb key or a gamepad button on the setup screen.
+- To join a local game, press your bomb key, or hold a button of your gamepad (OK on a TV remote) for a moment:
+  a short press only works the menus. To share a gamepad, the second player holds a button on their side of it
+  (LB on the left, A on the right); when one of them leaves, the other gets the whole gamepad back. The line-up
+  is remembered: players whose device is missing are hidden and come back with it.
+- In the menus, the arrow keys (or a d-pad or stick) always go to the nearest control. Enter (gamepad A) goes into
+  a player's card, to its colour, team, controls and ✕, or starts changing a setting: ← → then change it and
+  Enter is done. Esc (gamepad B) comes back out.
 - Click your bomber to pick its colour. In team games the cards are white or red; ⇄ on a card moves that player
   to the other team, and the list shows how many play for each side.
 - Above the arena, each player's name shows with a trophy (rounds won) and a skull (kills); team games show
@@ -155,10 +175,13 @@ countdown starts everybody at once.
 - The arena can be one arena, a random one, a random *special* one (ice, arrows, warp holes, conveyor belts,
   trampolines, bricks that grow back), or a random one of your own pick: tick the arenas, and give the list a
   name to keep it.
-- Once every person is out, the round fast-forwards while the computer players finish it: ← → set the speed
-  (1× to 8×), ↑ or ↓ pauses (in network games the host decides). The end always plays at normal speed.
+- Once every person is out, the round fast-forwards while the computer players finish it: ← → (or a gamepad's
+  d-pad) set the speed (1× to 8×), ↑ or ↓ pauses (in network games the host decides). The end always plays at
+  normal speed.
 - Keyboard controls are physical key positions, so they work on AZERTY, QWERTZ and other layouts. Change them or
-  record new ones in **Controls**; Keyboard right and left are also KEY 0 and KEY 1 in 1997 mode.
+  record new ones in **Controls**. In 1997 mode they are KEY 0 (right), KEY 1 (left), KEY 2, KEY 3 and so on, the
+  original's player setup also offers each half of a gamepad (JOY 0 L, JOY 0 R), and the line-up set in either
+  menus is the one the other shows.
 - Make your own arenas with the **Scheme editor** (Options → Extras); **My schemes** plays, exports and imports
   them.
 - **How to Play** in the game lists every power-up.

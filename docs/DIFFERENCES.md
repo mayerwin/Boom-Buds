@@ -11,8 +11,9 @@ over to a browser.
 ## 0. Modern menus
 
 By default Boom Buds starts with its own menus, an HTML layer with new artwork (logo, loading screen,
-main-menu picture) built for mouse, touch, keyboard and gamepad: *Local Game* (up to four players on the
-device plus computer players, the arena with a snapshot of each, the rules), *Network Game* (games on your
+main-menu picture) built for mouse, touch, keyboard and gamepad: *Local Game* (the players of the device, up
+to four on a keyboard and two on each gamepad, plus computer players, the arena with a snapshot of each, the
+rules), *Network Game* (games on your
 network, room codes, a lobby), *Controls* (control sets), *How to Play* and *Options*. They replace the
 original title → main menu → control selection → map selection → settings chain. The rounds and the screens
 between them are the original ones. The original program flow, menus and dialogs are still there, unchanged
@@ -155,27 +156,49 @@ its eight strategies in their order, its walker search, its random draws and its
 thought once per rendered frame) and sees the state as the original did at that moment of a frame. Next to it,
 Boom Buds adds computer players of its own with **five skill levels** (Rookie, Casual, Skilled, Expert,
 Master), chosen with stars in the modern menus (the *1997* chip in front of them is the original's). In the
-original menus, [right] on the control selection screen still steps OFF → AI → KEY 0 → KEY 1 → JOY 0 … → OFF;
+original menus, [right] on the control selection screen still steps OFF → AI → KEY 0 → KEY 1 → JOY 0 … → OFF,
+with Boom Buds' other control sets in between (§6): its other keyboard sets after KEY 1 (KEY 2, KEY 3…), each
+half of a gamepad after it (JOY 0 L, JOY 0 R), then the mouse (unless 1997's mouse is on) and the touch
+controls; with the original's two keyboard layouts and no gamepad the cycle is the original's. A team chosen in
+the modern menus, or with [T] here, stays for the next match setups (the original gave every slot its scheme's
+team again at each setup);
 [+] and [−] step the skill of the selected computer player from 0 to 5, the keys [1]–[5] set it (the key [0]
 keeps its original meaning, off), and so does a tap on the "AI n" text on a touch screen; the rows read
 "AI 0" … "AI 5" instead of "AI". The attract-mode demo uses the original's computer player.
 
 ## 6. Input
 
-* **Control sets (modern menus).** Each player plays with a control set: a keyboard layout (two built in:
-  E S D F to move with A = bomb and Q = special, and the arrow keys with . = bomb and , = special; more can be
-  recorded), a gamepad, the mouse (the bomber walks toward the pointer, left button = bomb, right button =
+* **Control sets (modern menus).** Each player plays with a control set: a keyboard layout (four built in, so
+  that four players can share a keyboard: E S D F to move with A = bomb and Q = special, the arrow keys with
+  . = bomb and , = special, I J K L with ; and P, the numpad's 8 4 5 6 with 0 and Enter; more can be recorded),
+  a gamepad or one half of it (two players on one gamepad: the left stick or the d-pad with LB = bomb and
+  LT = special, and the right stick with A or RB = bomb and B or RT = special), the mouse (the bomber walks toward the pointer, left button = bomb, right button =
   special) or the on-screen touch controls (one player, or two players on one device with one side bar
   each). Keyboard sets use physical key positions, so they work on any keyboard layout; their labels follow
   the keyboard. The original menus' two keyboard layouts KEY 0 and KEY 1 are the sets "Keyboard right" and
   "Keyboard left": the same keys in both menus, changed from either (the original kept them in options.ini);
   *Return to default keys* gives them back as Boom Buds ships them (arrows with . and , ; E S D F with A and Q).
+  The other sets are KEY 2, KEY 3… there, and the player setup offers every set of the device (§5). Both menus
+  share one line-up, kept with the settings: the players set up in one show in the other. Gamepads are known by
+  name, so a player finds their gamepad again after it reconnects or at the next visit; a player whose device
+  is missing is left out of the line-up until it comes back.
+* **Joining (modern menus).** A key of a free keyboard set adds its player at once; a gamepad (or the TV
+  remote's OK) joins when one of its buttons is held for 0.8 s, so that a short press stays a menu press. Held
+  on a gamepad already played whole, a button gives the newcomer that side of it (LB, LT, Select or the left
+  stick's click: the left half; the other buttons: the right half) and the other half to its player.
+* **Menu navigation (modern menus).** The arrows, a d-pad or a stick always move to the nearest control in
+  that direction. A player's card is one stop: Enter (A) goes into it, the arrows reach its colour, team,
+  controls and ✕, Escape (B) or an arrow past its edge comes out. Settings with values to go through (steppers,
+  stars, the arena) change with ← → only after Enter, until Enter, Escape, ↑ or ↓.
 * Keys are read from the browser; GNW's key repeat (500 ms, then every 80 ms) is reproduced in the original
   menus.
 * A key pressed and released between two game frames still counts for one frame (the original could miss
   it).
 * Joysticks are browser gamepads (standard mapping: d-pad or left stick, A/X = action 1, B/Y = action 2;
-  in menus B is also Esc; during a round Start pauses). They are numbered JOY 0, JOY 1... in the order the browser reports them.
+  in menus either stick or the d-pad move and B is also Esc; during a round Start or Select pauses, the d-pad,
+  a stick, A and B work the 1997 pause box (after a moment: another player may be pressing a bomb button), the
+  d-pad sets the fast-forward, and A, B or Start end the attract-mode demo). They are numbered JOY 0,
+  JOY 1... in the order the browser reports them.
 * Phones and tablets get on-screen controls (stick, A, B, ESC) that play KEY 0; taps select and activate
   menu entries and dismiss the title picture; holding ESC for 0.7 s quits a round (Ctrl-Q). The original
   ignored the mouse on menu screens; Boom Buds treats a click there like a tap, except in 1997 mode (§0b).

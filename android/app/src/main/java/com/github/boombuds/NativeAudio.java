@@ -44,6 +44,8 @@ final class NativeAudio {
     private final Map<String, Sample> samples = new HashMap<>();
     /** (pool, SoundPool id) -> sample */
     private final Map<Long, Sample> byId = new HashMap<>();
+    /** (pool, SoundPool id) -> load status, for sounds decoded before they were registered */
+    private final Map<Long, Integer> early = new HashMap<>();
     private final Set<String> failed = new HashSet<>();
     private int next;
     private int loadedCount;
@@ -77,7 +79,15 @@ final class NativeAudio {
     private synchronized void loadComplete(int pool, int id, int status) {
         if (released) return;
         Sample sample = byId.get(key(pool, id));
-        if (sample == null) return;
+        if (sample == null) {
+            // (decoded before load() registered it: it does when it gets the lock)
+            early.put(key(pool, id), status);
+            return;
+        }
+        finish(sample, status);
+    }
+
+    private void finish(Sample sample, int status) {
         if (status == 0) {
             sample.loaded = true;
             loadedCount++;
@@ -120,18 +130,24 @@ final class NativeAudio {
     }
 
     private void load(String path) {
+        int pool;
+        SoundPool soundPool;
         synchronized (this) {
             if (released || pools[0] == null || path.isEmpty() || samples.containsKey(path) || failed.contains(path)) return;
+            pool = next++ % POOLS;
+            soundPool = pools[pool];
         }
         try (AssetFileDescriptor fd = assets.openFd(path)) {
+            // (outside the lock: an older SoundPool's load() waits while its decoder is busy, and play() must not)
+            int id = soundPool.load(fd, 1);
             synchronized (this) {
-                if (released || samples.containsKey(path)) return;
-                int pool = next++ % POOLS;
-                int id = pools[pool].load(fd, 1);
+                if (released) return;
                 if (id == 0) { failed.add(path); return; }
                 Sample sample = new Sample(pool, id);
                 samples.put(path, sample);
                 byId.put(key(pool, id), sample);
+                Integer status = early.remove(key(pool, id));
+                if (status != null) finish(sample, status);
             }
         } catch (IOException | RuntimeException e) {
             synchronized (this) {
@@ -184,5 +200,6 @@ final class NativeAudio {
         for (int i = 0; i < POOLS; i++) if (pools[i] != null) { pools[i].release(); pools[i] = null; }
         samples.clear();
         byId.clear();
+        early.clear();
     }
 }

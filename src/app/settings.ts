@@ -1,6 +1,6 @@
 // Persistent options: the original options.ini fields plus the web version's own.
 
-import { defaultControlPrefs, type ControlPrefs } from './controls.ts';
+import { addMissingBuiltins, defaultControlPrefs, type ControlPrefs } from './controls.ts';
 
 export interface KeyDefs {
   /** keydef[set][action] = DIK scancode; actions: up, right, down, left, action1, action2 (+4 unused) */
@@ -158,11 +158,11 @@ export function loadSettings(): Settings {
     if (s.playtime < 60) s.playtime = 60;
     if (s.playtime > 600 && s.playtime !== 1001) s.playtime = 600;
     if (s.team_play) s.win_by_kills = 0;
-    // built-in control sets come back if a stored list lost them
-    const defaults = defaultControlPrefs().sets;
+    // built-in control sets come back if a stored list lost them (or was stored before they existed)
     if (!s.controls || !Array.isArray(s.controls.sets)) s.controls = defaultControlPrefs();
-    for (const d of defaults) if (!s.controls.sets.some((x) => x.id === d.id)) s.controls.sets.unshift(d);
+    addMissingBuiltins(s.controls);
     if (!Array.isArray(s.localPlayers)) s.localPlayers = [];
+    s.localPlayers = s.localPlayers.filter((id) => typeof id === 'string');
     if (!Array.isArray(s.localBots)) s.localBots = [0];
     s.localBots = s.localBots.map((v) => (Number.isInteger(v) ? Math.max(0, Math.min(5, v)) : 0));
     // the original's computer player became the default (2026-10): a line-up left as it came gets it too

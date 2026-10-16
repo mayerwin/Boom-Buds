@@ -16,10 +16,11 @@ import { applyRules, describeRules, rulesFromSettings, type Rules } from './rule
 import { buildParams, type MatchParams } from '../screens/match.ts';
 import { schemeFileText, allSchemes } from '../app/schemes.ts';
 import { LanBeacon, lanKeys } from '../net/lan.ts';
-import { NO_LOOK, placeLineup, schemeTeams, teamFor } from './lineup.ts';
+import { availableIds, NO_LOOK, placeLineup, schemeTeams, teamFor } from './lineup.ts';
 import { cleanLevels, type Look } from '../app/settings.ts';
 import { SKILL_NAMES } from './ui.tsx';
 import { COLOUR_NAMES } from './players.tsx';
+import { idsClash } from '../app/controls.ts';
 
 export interface LocalPlayer {
   ctl: string;
@@ -65,7 +66,8 @@ export interface ChatLine {
   at: number;
 }
 
-const MAX_LOCAL = 4;
+/** players one machine may bring (the ten slots are the real limit) */
+const MAX_LOCAL = 10;
 /** lines the chat keeps, characters per message */
 const CHAT_KEEP = 100;
 const CHAT_CHARS = 200;
@@ -133,7 +135,10 @@ export class LobbyModel {
   private botLooks: Look[];
   private timer: ReturnType<typeof setInterval>;
   private beacon: LanBeacon | null = null;
+  /** this machine's players who play (their device is there) */
   private mine: LocalPlayer[] = [];
+  /** this machine's players, also those whose device is not there now (they come back with it) */
+  private wanted: LocalPlayer[] = [];
   /** the chat, oldest first (the host keeps it and sends it to newcomers) */
   chat: ChatLine[] = [];
   private chatSeq = 0;
@@ -148,7 +153,7 @@ export class LobbyModel {
     this.bots = net.role === 'host' ? [...bots] : [];
     this.botLooks = this.bots.map(() => NO_LOOK);
     this.view = { slots: emptySlots(), labels: new Array(10).fill(''), rules: rulesFromSettings(g.settings), botOf: new Array(10).fill(-1) };
-    this.setMine(players);
+    this.setWanted(players);
     // back in the room after a lost connection: the host needs this machine's players again
     net.onRejoined = () => this.net.send(this.net.hostId, { t: 'mine', players: this.mine });
     this.timer = setInterval(() => this.poll(), 80);
@@ -159,8 +164,8 @@ export class LobbyModel {
     return this.net.role === 'host';
   }
 
-  /** This machine's players (control sets), at most four. */
-  setMine(players: LocalPlayer[]): void {
+  /** This machine's players who play (control sets). */
+  private setMine(players: LocalPlayer[]): void {
     this.mine = players.slice(0, MAX_LOCAL);
     if (this.isHost) {
       this.wants.set(this.net.myId, this.mine);
@@ -170,13 +175,34 @@ export class LobbyModel {
     }
   }
 
+  /** This machine's players, also those whose device is not there now: those whose device is there play. */
+  setWanted(players: LocalPlayer[]): void {
+    this.wanted = players;
+    this.refreshMine(true);
+  }
+
+  /** Devices came or went: their players come and go (`force`: tell the host anyway). */
+  refreshMine(force = false): void {
+    const avail = availableIds(this.g);
+    const prefs = this.g.settings.controls;
+    const now: LocalPlayer[] = [];
+    for (const p of this.wanted) if (avail.has(p.ctl) && !now.some((q) => idsClash(prefs, q.ctl, p.ctl))) now.push(p);
+    const same = now.length === this.mine.length && now.every((p, i) => p === this.mine[i]);
+    if (force || !same) this.setMine(now);
+  }
+
   get myPlayers(): LocalPlayer[] {
     return this.mine;
   }
 
+  /** This machine's players whose device is not there now. */
+  get waiting(): LocalPlayer[] {
+    return this.wanted.filter((p) => !this.mine.includes(p));
+  }
+
   /** A new colour or team for one of this machine's players. */
   setMyLook(ctl: string, look: Look): void {
-    this.setMine(this.mine.map((p) => (p.ctl === ctl ? { ...p, color: look.color, team: look.team } : p)));
+    this.setWanted(this.wanted.map((p) => (p.ctl === ctl ? { ...p, color: look.color, team: look.team } : p)));
   }
 
   // ------------------------------------------------------------------------------------- host
@@ -295,16 +321,15 @@ export class LobbyModel {
     return params;
   }
 
-  /** Back in the lobby after a match. */
+  /** Back in the lobby after a match (devices may have come and gone meanwhile: nobody listened). */
   resume(): void {
     this.net.aborted = false;
     if (this.isHost) {
       this.net.setOpen(true);
       this.beacon?.start();
-      this.arrange();
-    } else {
-      this.net.send(this.net.hostId, { t: 'mine', players: this.mine });
     }
+    // (the host arranges the table again; the others tell the host their players)
+    this.refreshMine(true);
   }
 
   private async startBeacon(): Promise<void> {

@@ -5,7 +5,7 @@
 // Keys auto-repeat like GNW: first repeat after 500 ms, then every 80 ms.
 
 import type { KeyEventRecord, PointerRecord } from '../engine/input.ts';
-import { IN_UP, IN_DOWN, IN_LEFT, IN_RIGHT, IN_ACT1, IN_ACT2 } from '../engine/input.ts';
+import { IN_UP, IN_DOWN, IN_LEFT, IN_RIGHT, IN_ACT1, IN_ACT2, connectedPads, padMenuBits } from '../engine/input.ts';
 import type { App } from '../app/App.ts';
 
 export const K = {
@@ -59,6 +59,68 @@ interface HeldKey {
   next: number;
 }
 
+const DIRS: [number, number][] = [[IN_UP, K.UP], [IN_DOWN, K.DOWN], [IN_LEFT, K.LEFT], [IN_RIGHT, K.RIGHT]];
+
+interface PadState {
+  bits: number;
+  /** the direction repeating while held (a key code, -1 none) and when it repeats next */
+  code: number;
+  bit: number;
+  at: number;
+  /** the last reading that saw the pad */
+  seen: number;
+}
+
+/**
+ * Menu keys from the gamepads, each read on its own: the directions (either stick or the d-pad, repeating while
+ * held: after 500 ms, then every 80 ms, like GNW's keys), A = Enter, B = Esc. A gamepad's first reading only
+ * notes what is held, so that a button already down then (the one that opened a menu) does not count.
+ */
+export class PadKeys {
+  private pads = new Map<number, PadState>();
+  private reading = 0;
+
+  poll(now: number, repeat = true): number[] {
+    const out: number[] = [];
+    const n = ++this.reading;
+    for (const gp of connectedPads()) {
+      const bits = padMenuBits(gp);
+      const st = this.pads.get(gp.index);
+      if (!st) {
+        this.pads.set(gp.index, { bits, code: -1, bit: 0, at: 0, seen: n });
+        continue;
+      }
+      st.seen = n;
+      const pressed = bits & ~st.bits;
+      st.bits = bits;
+      for (const [b, code] of DIRS) {
+        if (pressed & b) {
+          out.push(code);
+          st.code = code;
+          st.bit = b;
+          st.at = now + 500;
+        }
+      }
+      if (st.code !== -1) {
+        if (!(bits & st.bit)) st.code = -1;
+        else if (repeat && now >= st.at) {
+          out.push(st.code);
+          st.at = now + 80;
+        }
+      }
+      if (pressed & IN_ACT1) out.push(K.ENTER);
+      if (pressed & IN_ACT2) out.push(K.ESC);
+    }
+    for (const [i, st] of this.pads) if (st.seen !== n) this.pads.delete(i);
+    return out;
+  }
+
+  /** Forget the gamepads: the next reading only notes what is held. */
+  reset(): void {
+    this.pads.clear();
+  }
+}
+
 /**
  * Per-frame menu key source: keyboard (with GNW repeat), gamepads and the on-screen touch controls
  * (d-pad = arrows, A = Enter, B = Esc), plus pointer taps.
@@ -76,6 +138,14 @@ export class MenuInput {
 
   constructor(app: App) {
     this.app = app;
+  }
+
+  /** The gamepad and touch buttons held now are not presses (input_flush: a button that ended a demo or a screen). */
+  resetPads(): void {
+    let bits = this.app.touch.visible ? this.app.touch.bits() : 0;
+    for (const gp of connectedPads()) bits |= padMenuBits(gp);
+    this.prevPad = bits;
+    this.padRepeatCode = -1;
   }
 
   /** Collect this frame's key codes (in order). */
@@ -102,11 +172,9 @@ export class MenuInput {
     }
     // gamepads + touch controls
     let bits = this.app.touch.visible ? this.app.touch.bits() : 0;
-    const pads = this.app.input.gamepadCount();
-    for (let i = 0; i < pads; i++) bits |= this.app.input.gamepadBits(i);
+    for (const gp of connectedPads()) bits |= padMenuBits(gp);
     const pressed = bits & ~this.prevPad;
-    const dirs: [number, number][] = [[IN_UP, K.UP], [IN_DOWN, K.DOWN], [IN_LEFT, K.LEFT], [IN_RIGHT, K.RIGHT]];
-    for (const [b, code] of dirs) {
+    for (const [b, code] of DIRS) {
       if (pressed & b) {
         out.push(code);
         this.padRepeatCode = code;
@@ -114,7 +182,7 @@ export class MenuInput {
       }
     }
     if (this.padRepeatCode !== -1) {
-      const bit = dirs.find(([, c]) => c === this.padRepeatCode)![0];
+      const bit = DIRS.find(([, c]) => c === this.padRepeatCode)![0];
       if (!(bits & bit)) this.padRepeatCode = -1;
       else if (now >= this.padRepeatAt) {
         out.push(this.padRepeatCode);

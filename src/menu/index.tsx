@@ -38,6 +38,8 @@ export class Menus {
   private redraw: () => void = () => {};
   private music = 0;
   private opened = false;
+  /** the menus are on screen (closed during matches: no screen is mounted then, so none listens to keys or devices) */
+  isOpen = false;
 
   constructor(g: Game) {
     this.g = g;
@@ -47,6 +49,10 @@ export class Menus {
     this.root.id = 'menu-root';
     document.body.appendChild(this.root);
     this.nav = new Nav(this.root);
+    // focus rings while keys or gamepads drive the menus (the browser shows none after a click otherwise: a
+    // gamepad's made-up keys do not count as keyboard use)
+    this.nav.onKeyboardUse = () => this.root.classList.add('kbd');
+    this.root.addEventListener('pointerdown', () => this.root.classList.remove('kbd'), { capture: true });
     this.nav.onBack = () => {
       if (this.root.querySelector('.modal-wrap')) return;
       if (this.screen === 'lobby') this.leaveLobby();
@@ -64,6 +70,7 @@ export class Menus {
       screen = 'network';
     }
     this.opened = true;
+    this.isOpen = true;
     this.g.app.input.suspended = true;
     this.g.app.touch.show(false);
     this.g.app.canvas.style.visibility = 'hidden';
@@ -99,6 +106,9 @@ export class Menus {
   exit(e: MenuExit): void {
     this.nav.stop();
     this.root.classList.remove('open');
+    this.isOpen = false;
+    // (the screen unmounts: what it showed is kept in the settings and the lobby, and comes back with the menus)
+    this.redraw();
     this.g.app.canvas.style.visibility = '';
     this.g.app.input.suspended = false;
     this.g.ui.flushInput();
@@ -178,7 +188,7 @@ export class Menus {
         this.redraw();
       },
       save: () => this.g.app.saveSettings(),
-      setPadHook: (h) => (this.nav.padHook = h),
+      setJoinHook: (h) => (this.nav.joinHook = h),
     };
   }
 }
@@ -202,7 +212,7 @@ function App(props: { menus: Menus }): JSX.Element {
     <Ctx.Provider value={ctx}>
       <div class={`menu-art ${menus.screen === 'home' ? '' : 'blur'}`} style={{ backgroundImage: `url(${artUrl})` }} />
       {menus.screen !== 'home' && <div class="backdrop" />}
-      <div key={menus.screen} style={{ position: 'absolute', inset: 0 }}>{screen}</div>
+      {menus.isOpen && <div key={menus.screen} style={{ position: 'absolute', inset: 0 }}>{screen}</div>}
       {menus.toastMsg && <Toast text={menus.toastMsg.text} bad={menus.toastMsg.bad} />}
     </Ctx.Provider>
   );

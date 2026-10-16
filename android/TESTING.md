@@ -3,9 +3,14 @@
 ## Unit tests
 
 - `npm test` (repository root) includes `tests/tv.test.ts`: the controller adapter `tv/tv.js` (standard
-  mapping of buttons, d-pad, hat, sticks and triggers; the remote's devices merged into one "TV remote"
-  gamepad; quick taps kept until a display frame has seen them; key repeats; Back meaning B in the menus and
-  Start in a round; releasing everything when the app goes to the background).
+  mapping of buttons, d-pad, hat, sticks and triggers; the right stick from Z / RZ, or RX / RY on gamepads
+  without them; the remote's devices merged into one "TV remote" gamepad; quick taps kept until a display frame
+  has seen them; key repeats; Back meaning B in the menus and Start in a round; releasing everything when the
+  app goes to the background; one snapshot per display frame), and `tests/controls.test.ts` (gamepads known by
+  name, halves of a gamepad, the 1997 menus' KEY n / JOY n L / R).
+- `npm run e2e` includes `tests/e2e/controls.spec.ts`, with made-up gamepads in Chrome: holding a button
+  joins, a short press is a menu press, two players on one gamepad, sticks in the pause menus, the d-pad in
+  the fast-forward and the 1997 pause box, the modern line-up in the 1997 player setup.
 - `gradlew.bat test lint` (in `android/`): `DisplayPolicy` (which display mode is 4K at the current refresh
   rate), `InputMath` (stick dead zones), `NativeAudio.assetPath` (game URLs to packaged files, nothing outside
   them).
@@ -35,8 +40,9 @@ $env:BB_QA_SERIAL = 'emulator-5558'; node android/tests/emulator-smoke.cjs
 ```
 
 `emulator-smoke.cjs` checks, from a fresh install: the remote and the gamepad show up as gamepads; the remote's
-arrows move the menu focus and OK opens Local Game; player 1 is the gamepad, the remote's OK does not join,
-Add player picks the remote; a round starts with gamepad, remote and computer players; both move their bombers;
+arrows move the menu focus and OK opens Local Game; player 1 is the gamepad, a short OK of the remote does not
+join but a held one does, LB held on the gamepad adds a player on its left half and removing that player gives
+player 1 the whole gamepad back; a round starts with gamepad, remote and computer players; both move their bombers;
 with trigger bombs the gamepad's A still drops one at once and B sets it off; the remote's OK drops a bomb at
 once, and with trigger bombs a short OK drops one when let go while a long OK (the special) sets it off; every effect and voice is preloaded in `SoundPool` and the bombs play there (no Web
 Audio fallback); Back pauses (the simulation stops), Back resumes, Quit returns to the lobby; Back returns to the main
@@ -46,11 +52,26 @@ physical pixel; no page errors. Screenshots and a JSON record go to `app/build/q
 `emulator-keyboard.cjs` plays with a virtual keyboard: the menus follow the arrows and Enter, the arrow keys and
 E S D F play two bombers, Esc pauses.
 
+`emulator-1997.cjs` plays 1997 mode with the remote: OK goes through the original menus to a round, "Back to
+today" stays hidden during it, Back opens the original's pause box and its arrows and OK choose in it.
+
 `emulator-screenshots.cjs` makes the store screenshots on the 4K emulator. `emulator-release-smoke.cjs` plays
 the signed release APK (no DevTools there) with the virtual remote and takes screenshots to look at.
 
 The emulators render with SwiftShader at a few frames per second: they prove input paths, sound routing and
 pixels, not smoothness or real audio latency (HDMI, soundbars and a TV's own processing are outside the app).
+
+## Results (15 October 2026)
+
+- `npm test` (85 tests), `npm run e2e` (18), JVM tests and lint pass.
+- On both emulators: `emulator-smoke.cjs` (a short OK of the remote is a menu press and a held one joins it; LB
+  held on the gamepad adds a player on its left half; that player's ✕ gives the whole gamepad back),
+  `emulator-keyboard.cjs` and `emulator-1997.cjs` pass. The smoke test now keeps players 1 and 2 from dying
+  (their own trigger bombs, or a computer player's, could end the round before the pause step).
+- Found and fixed on the way (reviews of the TV path): a held Back on Android 9–12 left the app (its repeats
+  read as new presses); quick taps of a d-pad on the hat axes, or of a trigger, could be merged away between two
+  frames; a gamepad whose Z / RZ are triggers (no key layout of its own) read its right stick as pushed up-left;
+  the search key of remotes was swallowed; a dying page renderer closed the app (it now starts again).
 
 ## Results (14 October 2026, version 1.0.0)
 

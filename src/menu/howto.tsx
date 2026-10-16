@@ -42,8 +42,9 @@ export function HowTo(): JSX.Element {
               <b>{s.name}:</b> {keysSummary(s.keys!)} <span class="muted">(move · bomb special)</span>
             </p>
           ))}
-          <p class="small"><b>Gamepad:</b> stick or d-pad, A bomb, B special. <b>Touch:</b> on-screen stick, A bomb, B special. <b>Mouse:</b> point where to walk, left button bomb, right button special.</p>
-          <p class="small muted">During a round: Esc pauses (local games) · F10 ends the round in a draw · Ctrl-Q leaves the match.</p>
+          <p class="small"><b>Gamepad:</b> stick or d-pad, A bomb, B special. Two players can share one: on the left side the left stick or d-pad, LB bomb, LT special; on the right side the right stick, A or RB bomb, B or RT special.</p>
+          <p class="small"><b>TV remote:</b> arrows, OK bomb, hold OK for the special. <b>Touch:</b> on-screen stick, A bomb, B special. <b>Mouse:</b> point where to walk, left button bomb, right button special.</p>
+          <p class="small muted">During a round: Esc (or a gamepad's Start) pauses · F10 ends the round in a draw · Ctrl-Q leaves the match. When only computer players are left: ← → (or the d-pad) change the speed, ↑ ↓ pause.</p>
           <h3>Diseases</h3>
           <p class="small">Slow legs, too fast, no bombs, bombs everywhere, short flame, short fuse, reversed controls, swapped places… Touch another bud to pass it on, or wait for it to wear off.</p>
           <h3>Arenas</h3>

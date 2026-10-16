@@ -14,12 +14,12 @@ import { createGame, roundStart, step, type MatchConfig } from '../game/sim/sim.
 import { BombState, BombType, type GameState } from '../game/sim/types.ts';
 import { GameRenderer } from '../game/render/GameRenderer.ts';
 import { AudioPresenter } from '../game/audioPresenter.ts';
-import { IN_UP, IN_RIGHT, IN_DOWN, IN_LEFT, IN_ACT1, IN_ACT2 } from '../engine/input.ts';
+import { IN_UP, IN_RIGHT, IN_DOWN, IN_LEFT, IN_ACT1, IN_ACT2, connectedPads, padBits, padButtonMask } from '../engine/input.ts';
 import { AI_DEFAULT, INPUT_AI, INPUT_JOY, INPUT_KEY, INPUT_OFF } from '../app/session.ts';
-import { gnwCode, K } from '../ui/menuInput.ts';
+import { gnwCode, K, PadKeys } from '../ui/menuInput.ts';
 import { helpScreen } from '../ui/helpViewer.ts';
 import { createAi, type AiOptions, type AiPlayer } from '../game/ai/index.ts';
-import { classicLayouts, findSet, keyBits, mouseBits, RemoteButton, TV_REMOTE } from '../app/controls.ts';
+import { CLASSIC_SET_IDS, classicLayouts, findSet, keyBits, mouseBits, padOfSet, RemoteButton, TV_REMOTE, type ControlSet } from '../app/controls.ts';
 import { openPauseMenu, type PauseMenu } from '../menu/pause.ts';
 import type { Scheme } from '../engine/assets.ts';
 import { RollbackSession } from '../net/rollback.ts';
@@ -59,6 +59,12 @@ export class MatchRunner {
   private inputs = new Uint8Array(11);
   /** the TV remote's OK button of each slot that plays with it */
   private remotes: (RemoteButton | undefined)[] = [];
+  /** the control set of each slot this machine plays with one (found at the start of each round) */
+  private sets: (ControlSet | null)[] = [];
+  /** the on-screen controls play the keyboard set KEY 0 too (nobody has them as their own controls) */
+  private touchKey0 = true;
+  /** the gamepads' keys for the 1997 pause box and the fast-forward (the modern pause menu reads them itself) */
+  private padKeys = new PadKeys();
   private focusLost = false;
   /** the computer player that takes over a machine's players when it leaves (lost_net_revert_ai) */
   private aiLevel: AiOptions['level'];
@@ -147,6 +153,13 @@ export class MatchRunner {
     this.localTick = 0;
     this.classicKeys = classicLayouts(g.settings.controls);
     this.remotes = [];
+    // this machine's players' control sets, found once for the round (sampled every tick)
+    this.sets = sess.slots.map((sl, i) => (sl.ctl && sess.isLocalHuman(i) ? findSet(g.settings.controls, sl.ctl) : null));
+    // the on-screen controls also play KEY 0 (as in the original menus on a phone) unless a player has them as
+    // their own: one player's layout, or a side bar each (the original menus too, where Game.prepareTouch does not run)
+    const touch = this.sets.filter((s) => s?.kind === 'touch');
+    this.touchKey0 = !touch.length;
+    if (touch.length) g.app.touch.setPlayers(touch.some((s) => s!.side !== 'both') ? 2 : 1);
     // modern menus: Boom Buds' score lines, and where this machine's only player is for the first seconds
     const modern = !originalMenus(g.settings) && !!g.menus && !sess.attract;
     this.gr.hud = modern ? { names: sess.slots.map((sl, i) => hudName(sl.type === INPUT_AI ? 'CPU' : sl.name, i)) } : null;
@@ -173,7 +186,7 @@ export class MatchRunner {
         bits = 0; // the pause menu is open: this machine's players stand still
         this.remotes[i]?.suspend();
       } else if (sess.isLocalHuman(i) && slot.ctl) {
-        bits = this.controlBits(i, slot.ctl);
+        bits = this.controlBits(i);
       } else if (sess.isLocalHuman(i)) {
         if (slot.type === INPUT_KEY) {
           const k = sets[slot.dev ? 1 : 0];
@@ -183,12 +196,10 @@ export class MatchRunner {
           if (input.held(k[3])) bits |= IN_LEFT;
           if (input.held(k[4])) bits |= IN_ACT1;
           if (input.held(k[5])) bits |= IN_ACT2;
-          if (slot.dev === 0 && app.touch.visible) bits |= app.touch.bits();
+          if (slot.dev === 0 && app.touch.visible && this.touchKey0) bits |= app.touch.bits();
         } else if (slot.type === INPUT_JOY) {
-          bits = input.gamepadBits(slot.dev);
-          // kface easter egg: up held with exactly buttons 2,4,7 (on) or 2,4,8 (off)
-          const mask = input.gamepadButtonMask(slot.dev);
-          if (bits & IN_UP && (mask === 0x4a || mask === 0x8a)) bits |= mask === 0x4a ? 0x40 : 0xc0;
+          const gp = connectedPads()[slot.dev];
+          if (gp) bits = this.wholePadBits(i, gp);
         }
       } else if (this.ais[i]) {
         // (nothing moves in a paused round: the computer players need not think)
@@ -203,19 +214,31 @@ export class MatchRunner {
     input.clearLatched();
   }
 
-  /** Input bits of a control set chosen in the modern menus. */
-  private controlBits(i: number, id: string): number {
+  /** Input bits of a whole gamepad playing slot `i`. */
+  private wholePadBits(i: number, gp: Gamepad): number {
+    let bits = padBits(gp);
+    // one button: a long press of OK is the special when the bomber has a use for it
+    if (gp.id === TV_REMOTE) return (this.remotes[i] ??= new RemoteButton()).bits(bits, specialUseful(this.s, i), performance.now());
+    // kface easter egg: up held with exactly buttons 2,4,7 (on) or 2,4,8 (off)
+    const mask = bits & IN_UP ? padButtonMask(gp) : 0;
+    if (mask === 0x4a || mask === 0x8a) bits |= mask === 0x4a ? 0x40 : 0xc0;
+    return bits;
+  }
+
+  /** Input bits of a player's control set (the modern menus' choice, or one of Boom Buds' in the original menus). */
+  private controlBits(i: number): number {
     const app = this.g.app;
-    const set = findSet(this.g.settings.controls, id);
+    const set = this.sets[i];
     if (!set) return 0;
     switch (set.kind) {
-      case 'keys':
-        return keyBits(app.input, set.keys!);
+      case 'keys': {
+        const bits = keyBits(app.input, set.keys!);
+        return this.touchKey0 && set.id === CLASSIC_SET_IDS[0] && app.touch.visible ? bits | app.touch.bits() : bits;
+      }
       case 'pad': {
-        const bits = app.input.gamepadBits(set.pad ?? 0);
-        if (set.name !== TV_REMOTE) return bits;
-        // one button: a long press of OK is the special when the bomber has a use for it
-        return (this.remotes[i] ??= new RemoteButton()).bits(bits, specialUseful(this.s, i), performance.now());
+        const gp = padOfSet(set);
+        if (!gp) return 0;
+        return set.half ? padBits(gp, set.half) : this.wholePadBits(i, gp);
       }
       case 'mouse': {
         const p = this.s.players[i];
@@ -287,10 +310,21 @@ export class MatchRunner {
         else await this.roundKey(k);
         break;
       }
-      // a gamepad's Start pauses (and in the 1997 box, resumes; the modern menu reads the gamepads itself)
+      // a gamepad's Start (or Select) pauses (in the 1997 box, resumes; the modern menu reads the gamepads itself)
+      // and ends a demo
       if (this.padStart() && !this.menu?.html) {
-        if (this.menu) this.menuKey(K.ESC);
-        else if (!session.attract) await this.roundKey(K.ESC);
+        if (!this.menu) await this.roundKey(K.ESC);
+        else if (performance.now() >= this.menu.padGraceUntil) this.menuKey(K.ESC);
+      }
+      // gamepads and the TV remote: the d-pad, a stick, A and B choose in the 1997 box; the directions set the
+      // fast-forward (the players they would move are out); A and B end a demo
+      for (const k of this.padKeys.poll(f.now)) {
+        if (this.menu?.box) {
+          if (performance.now() >= this.menu.padGraceUntil) this.menuKey(k);
+        } else if (this.menu) break;
+        else if (session.attract ? k === K.ENTER || k === K.ESC : (k === K.LEFT || k === K.RIGHT || k === K.UP || k === K.DOWN) && this.ffActive() && this.ffControl()) {
+          await this.roundKey(k);
+        }
       }
       if (this.menu?.box) this.boxPointer(f.pointer, f.now);
       if (session.net) await this.checkNet();
@@ -384,12 +418,11 @@ export class MatchRunner {
 
   private startWas: boolean[] = [];
 
-  /** A gamepad's Start button was just pressed. */
+  /** A gamepad's Start button (or Select, nearer to whoever plays the left half of a gamepad) was just pressed. */
   private padStart(): boolean {
     let hit = false;
-    for (const gp of navigator.getGamepads?.() ?? []) {
-      if (!gp) continue;
-      const on = !!gp.buttons[9]?.pressed;
+    for (const gp of connectedPads()) {
+      const on = !!gp.buttons[9]?.pressed || !!gp.buttons[8]?.pressed;
       if (on && !this.startWas[gp.index]) hit = true;
       this.startWas[gp.index] = on;
     }
@@ -476,9 +509,11 @@ export class MatchRunner {
     // a menu opened by someone else's pause ignores this machine's keys, buttons and clicks for a moment (a bomb
     // button pressed just then must not resume); one opened here only the gamepads (another player's bomb button)
     const grace = want.remote ? 800 : 0;
+    const padGrace = want.remote ? grace : 300;
     if (originalMenus(g.settings) || !g.menus) {
       const box = new MenuBox(g.dlg, want.title, want.note, want.items.map((i) => i[0]), g.ui.col.yellow, g.ui.col.black);
-      this.menu = { key, box, html: null, actions, graceUntil: performance.now() + grace };
+      const now = performance.now();
+      this.menu = { key, box, html: null, actions, graceUntil: now + grace, padGraceUntil: now + padGrace };
       return;
     }
     g.app.input.suspended = true;
@@ -491,9 +526,9 @@ export class MatchRunner {
         this.pauseChoice(action);
       },
       grace,
-      want.remote ? grace : 300,
+      padGrace,
     );
-    this.menu = { key, box: null, html, actions, graceUntil: performance.now() + grace };
+    this.menu = { key, box: null, html, actions, graceUntil: performance.now() + grace, padGraceUntil: performance.now() + padGrace };
   }
 
   private closeMenu(): void {
@@ -798,6 +833,7 @@ export class MatchRunner {
         }
         sl.type = revert ? INPUT_AI : INPUT_OFF;
         sl.dev = 0;
+        sl.ctl = undefined;
         sl.owner = net.myId;
       }
     }
@@ -930,6 +966,8 @@ interface OpenMenu {
   actions: PauseAction[];
   /** keys and clicks count from then on (performance.now) */
   graceUntil: number;
+  /** and the gamepads' buttons from then on (another player of this machine may be pressing a bomb button) */
+  padGraceUntil: number;
 }
 
 /** A name the score lines' font can show (its characters are Latin-1), or "P1"... */

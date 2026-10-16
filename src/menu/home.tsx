@@ -161,7 +161,7 @@ export function Home(): JSX.Element {
               <Icon name="couch" />
               <span>
                 <b>Local Game</b>
-                <small>Up to 4 players on this device, plus computer players</small>
+                <small>Friends on this device, plus computer players</small>
               </span>
             </button>
             {quick && (

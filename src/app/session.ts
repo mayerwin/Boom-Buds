@@ -24,6 +24,8 @@ export interface Slot {
   ctl?: string;
   /** modern menus: the player's name in the score lines ("P1", a machine's name, "CPU") */
   name?: string;
+  /** the player chose this team (the modern menus, or T on the original's player setup): match setups keep it */
+  teamChosen?: boolean;
 }
 
 /** Default computer player: the original game's. */
@@ -48,6 +50,8 @@ export class Session {
   campaignStages: { name: string; level: number; scheme: string; rovers: number; roverSpeed: number; ghosts: number; ghostSpeed: number; ais: number }[] = [];
   /** first match after a network session resets the inputs */
   afterNet = false;
+  /** the next local setup starts from the kept line-up (src/menu/lineup.ts) instead of these slots */
+  fromLineup = false;
   /** benchmark / demo override of attract mode: number of computer players, level (-1 random), skill (0 = as set) */
   bench: { players: number; level: number; ai: number } | null = null;
   /** the network session (null in local games) */
@@ -130,18 +134,6 @@ export class Session {
 
   hasHumans(): boolean {
     return this.slots.some((s) => s.type === INPUT_KEY || s.type === INPUT_JOY);
-  }
-
-  /** players_count_input_conflicts: two players of one machine on the same keyboard layout or joystick */
-  inputConflicts(): number {
-    let n = 0;
-    for (let a = 0; a < 10; a++) {
-      for (let b = a + 1; b < 10; b++) {
-        const x = this.slots[a], y = this.slots[b];
-        if ((x.type === INPUT_KEY || x.type === INPUT_JOY) && x.type === y.type && x.dev === y.dev && x.owner === y.owner) n++;
-      }
-    }
-    return n;
   }
 
   /** players_count_sides: active players, or distinct teams with team play */

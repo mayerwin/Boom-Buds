@@ -67,6 +67,114 @@ export const IN_LEFT = 8;
 export const IN_ACT1 = 16;
 export const IN_ACT2 = 32;
 
+// ------------------------------------------------------------------------------------- gamepads
+
+let padCache: Gamepad[] = [];
+let padCacheAt = -Infinity;
+/** the name of the gamepad last seen at each place of the browser's list, during this visit */
+const seenAt: string[] = [];
+
+// a gamepad that comes or goes is seen at once (by the listeners of these events too)
+if (typeof window !== 'undefined') {
+  for (const ev of ['gamepadconnected', 'gamepaddisconnected']) window.addEventListener(ev, () => (padCacheAt = -Infinity), { capture: true });
+}
+
+/**
+ * The connected gamepads, in the browser's order (JOY 0, JOY 1, ...). Kept for a moment: many readers look at
+ * them in each frame, and every navigator.getGamepads() call makes new snapshot objects (on the TV, of every
+ * button of every pad).
+ */
+export function connectedPads(): Gamepad[] {
+  const now = performance.now();
+  if (now - padCacheAt < 2) return padCache;
+  padCacheAt = now;
+  const out: Gamepad[] = [];
+  const pads = typeof navigator !== 'undefined' && navigator.getGamepads ? navigator.getGamepads() : [];
+  for (const p of pads) {
+    if (!p || !p.connected) continue;
+    out.push(p);
+    seenAt[p.index] = p.id;
+  }
+  padCache = out;
+  return out;
+}
+
+/**
+ * A gamepad's rank among the gamepads of its name: how many come before it in the browser's list, counting
+ * those that went away during this visit, so that one of two identical gamepads dropping out for a moment does
+ * not hand its player to the other.
+ */
+export function padRank(gp: Gamepad): number {
+  let r = 0;
+  for (let j = 0; j < gp.index; j++) if (seenAt[j] === gp.id) r++;
+  return r;
+}
+
+/** Tests: forget the gamepads seen so far. */
+export function forgetPads(): void {
+  seenAt.length = 0;
+  padCacheAt = -Infinity;
+}
+
+/** Half of a gamepad: two players on one gamepad, one on each side. */
+export type PadHalf = 'left' | 'right';
+
+/** Buttons of the left side of a gamepad (standard mapping): LB, LT, Select / View, the left stick's click. */
+export const LEFT_SIDE_BUTTONS = [4, 6, 8, 10];
+
+const STICK = 0.5;
+
+function stickBits(x: number | undefined, y: number | undefined): number {
+  let bits = 0;
+  if ((y ?? 0) < -STICK) bits |= IN_UP;
+  if ((y ?? 0) > STICK) bits |= IN_DOWN;
+  if ((x ?? 0) < -STICK) bits |= IN_LEFT;
+  if ((x ?? 0) > STICK) bits |= IN_RIGHT;
+  return bits;
+}
+
+function dpadBits(gp: Gamepad): number {
+  const b = (n: number) => !!gp.buttons[n]?.pressed;
+  return (b(12) ? IN_UP : 0) | (b(13) ? IN_DOWN : 0) | (b(14) ? IN_LEFT : 0) | (b(15) ? IN_RIGHT : 0);
+}
+
+/**
+ * IN_* bits of a gamepad (standard mapping). The whole pad: the left stick or the d-pad move, A (or X) is the
+ * bomb button, B (or Y) the special. Half of it, for two players on one gamepad: on the left side, the left stick
+ * or the d-pad, LB bomb, LT special; on the right side, the right stick, A / X / RB bomb, B / Y / RT special.
+ */
+export function padBits(gp: Gamepad, half?: PadHalf): number {
+  const b = (n: number) => !!gp.buttons[n]?.pressed;
+  if (half === 'right') {
+    let bits = gp.mapping === 'standard' ? stickBits(gp.axes[2], gp.axes[3]) : 0;
+    if (b(0) || b(2) || b(5)) bits |= IN_ACT1;
+    if (b(1) || b(3) || b(7)) bits |= IN_ACT2;
+    return bits;
+  }
+  let bits = stickBits(gp.axes[0], gp.axes[1]) | dpadBits(gp);
+  if (half === 'left') {
+    if (b(4)) bits |= IN_ACT1;
+    if (b(6)) bits |= IN_ACT2;
+  } else {
+    if (b(0) || b(2)) bits |= IN_ACT1;
+    if (b(1) || b(3)) bits |= IN_ACT2;
+  }
+  return bits;
+}
+
+/**
+ * A gamepad in the menus: either stick (the right one only where the browser knows the layout: the standard
+ * mapping) or the d-pad give the directions, A (or X) is Enter, B (or Y) Escape (IN_ACT1 / IN_ACT2).
+ */
+export function padMenuBits(gp: Gamepad): number {
+  const b = (n: number) => !!gp.buttons[n]?.pressed;
+  let bits = stickBits(gp.axes[0], gp.axes[1]) | dpadBits(gp);
+  if (gp.mapping === 'standard') bits |= stickBits(gp.axes[2], gp.axes[3]);
+  if (b(0) || b(2)) bits |= IN_ACT1;
+  if (b(1) || b(3)) bits |= IN_ACT2;
+  return bits;
+}
+
 export class Input {
   /** current key state by DIK code */
   readonly down = new Uint8Array(256);
@@ -113,7 +221,8 @@ export class Input {
   }
 
   private onKey(e: KeyboardEvent, isDown: boolean): void {
-    if (isDown) this.keyboardSeen = true;
+    // (keys the menus make up for a gamepad's buttons are no keyboard, nor a TV remote's search or media key)
+    if (isDown && e.isTrusted && dikFromCode(e.code)) this.keyboardSeen = true;
     if (this.suspended) {
       if (!isDown) this.down[dikFromCode(e.code)] = 0;
       return;
@@ -135,7 +244,6 @@ export class Input {
     }
     if (isDown) {
       this.gesture();
-      this.keyboardSeen = true;
       // (browser auto-repeat events are queued too; menus implement GNW's own repeat and skip them)
       this.keyQueue.push({
         dik,
@@ -217,39 +325,23 @@ export class Input {
 
   /** Connected gamepads in the browser's order (the game's JOY 0, JOY 1, ...). */
   gamepads(): Gamepad[] {
-    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
-    const out: Gamepad[] = [];
-    for (const p of pads) if (p && p.connected) out.push(p);
-    return out;
+    return connectedPads();
   }
 
-  /** Read gamepads; returns IN_* bits for JOY `i` (standard mapping). */
+  /** IN_* bits of JOY `i`, the whole gamepad (standard mapping). */
   gamepadBits(i: number): number {
-    const gp = this.gamepads()[i];
-    if (!gp) return 0;
-    let bits = 0;
-    const ax = gp.axes[0] ?? 0;
-    const ay = gp.axes[1] ?? 0;
-    const btn = (n: number) => !!gp.buttons[n]?.pressed;
-    if (ay < -0.5 || btn(12)) bits |= IN_UP;
-    if (ay > 0.5 || btn(13)) bits |= IN_DOWN;
-    if (ax < -0.5 || btn(14)) bits |= IN_LEFT;
-    if (ax > 0.5 || btn(15)) bits |= IN_RIGHT;
-    if (btn(0) || btn(2)) bits |= IN_ACT1;
-    if (btn(1) || btn(3)) bits |= IN_ACT2;
-    return bits;
-  }
-
-  /** Buttons 1..8 of JOY `i` as the original's joystick button mask (bit k = button k + 1). */
-  gamepadButtonMask(i: number): number {
-    const gp = this.gamepads()[i];
-    if (!gp) return 0;
-    let m = 0;
-    for (let k = 0; k < 8; k++) if (gp.buttons[k]?.pressed) m |= 1 << k;
-    return m;
+    const gp = connectedPads()[i];
+    return gp ? padBits(gp) : 0;
   }
 
   gamepadCount(): number {
-    return this.gamepads().length;
+    return connectedPads().length;
   }
+}
+
+/** Buttons 1..8 of a gamepad as the original's joystick button mask (bit k = button k + 1). */
+export function padButtonMask(gp: Gamepad): number {
+  let m = 0;
+  for (let k = 0; k < 8; k++) if (gp.buttons[k]?.pressed) m |= 1 << k;
+  return m;
 }

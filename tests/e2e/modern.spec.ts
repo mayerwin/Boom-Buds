@@ -93,7 +93,8 @@ test('controls: record a keyboard set; how to play; options', async ({ page }) =
   await page.getByRole('button', { name: /New keyboard set/ }).click();
   for (const k of ['KeyI', 'KeyL', 'KeyK', 'KeyJ', 'KeyU', 'KeyO']) await page.keyboard.press(k);
   await page.getByRole('button', { name: 'Save' }).click();
-  await expect(page.getByText('Keyboard 3', { exact: true })).toBeVisible();
+  // (after the four built-in sets; KEY 4 in the 1997 menus)
+  await expect(page.locator('.set-card b', { hasText: 'Keyboard 5' })).toContainText('KEY 4');
   const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('boombuds.settings.v1') ?? '{}').controls.sets.map((s: { keys?: string[] }) => s.keys?.join(',')));
   expect(stored).toContain('KeyI,KeyL,KeyK,KeyJ,KeyU,KeyO');
   await page.keyboard.press('Escape');

@@ -38,8 +38,11 @@ import org.json.JSONObject;
 
 import java.io.ByteArrayInputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * TV host for the shared web game (the same build as the website, packaged offline). Keyboards and mice reach the
@@ -53,6 +56,8 @@ public final class MainActivity extends Activity implements InputManager.InputDe
     private static final int REMOTE_BACK_DEVICE = -2;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final SparseArray<JSONObject> devices = new SparseArray<>();
+    /** the axes last sent for each device (the same values again are not sent) */
+    private final SparseArray<String> lastAxes = new SparseArray<>();
     private final ArrayList<JSONObject> pending = new ArrayList<>();
     private WebView webView;
     private InputManager inputManager;
@@ -112,8 +117,16 @@ public final class MainActivity extends Activity implements InputManager.InputDe
                 return result;
             }
 
+            /** The page's renderer died (out of memory on a small TV, a crash): start again rather than close. */
+            @androidx.annotation.RequiresApi(26)
+            @Override public boolean onRenderProcessGone(WebView view, android.webkit.RenderProcessGoneDetail detail) {
+                if (view == webView) recreate();
+                return true;
+            }
+
             @Override public void onPageStarted(WebView view, String url, android.graphics.Bitmap icon) {
                 ready = false;
+                lastAxes.clear();
                 if (nativeAudio != null) nativeAudio.stopAll();
                 pending.clear();
             }
@@ -127,8 +140,8 @@ public final class MainActivity extends Activity implements InputManager.InputDe
         if (Build.VERSION.SDK_INT >= 33) {
             // On API 33+ this callback is the only producer of Back (the key also arrived here twice before).
             getOnBackInvokedDispatcher().registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_DEFAULT, () -> {
-                remoteKey(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_BACK);
-                remoteKey(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_BACK);
+                remoteKey(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_BACK, 0);
+                remoteKey(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_BACK, 0);
             });
         }
         webView.loadUrl(GAME_URL);
@@ -182,6 +195,7 @@ public final class MainActivity extends Activity implements InputManager.InputDe
                 ready = true;
                 pending.clear();
                 devices.clear();
+                lastAxes.clear();
                 // gamepads first, then the remote: the same controllers get the same places at every launch
                 int[] ids = InputDevice.getDeviceIds();
                 for (int id : ids) if (!describeDevice(id).optBoolean("remote")) onInputDeviceAdded(id);
@@ -255,36 +269,31 @@ public final class MainActivity extends Activity implements InputManager.InputDe
             && input.getKeyboardType() != InputDevice.KEYBOARD_TYPE_ALPHABETIC;
     }
 
+    /** The keys tv.js gives a meaning (its BUTTONS); a gamepad's or remote's other keys keep their usual behavior. */
+    private static final Set<Integer> GAME_KEYS = new HashSet<>(Arrays.asList(
+        KeyEvent.KEYCODE_BUTTON_A, KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER,
+        KeyEvent.KEYCODE_BUTTON_B, KeyEvent.KEYCODE_BUTTON_X, KeyEvent.KEYCODE_BUTTON_C, KeyEvent.KEYCODE_BUTTON_Y,
+        KeyEvent.KEYCODE_BUTTON_Z, KeyEvent.KEYCODE_BUTTON_L1, KeyEvent.KEYCODE_BUTTON_R1, KeyEvent.KEYCODE_BUTTON_L2,
+        KeyEvent.KEYCODE_BUTTON_R2, KeyEvent.KEYCODE_BUTTON_SELECT, KeyEvent.KEYCODE_BUTTON_START, KeyEvent.KEYCODE_MENU,
+        KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, KeyEvent.KEYCODE_BUTTON_THUMBL, KeyEvent.KEYCODE_BUTTON_THUMBR,
+        KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT,
+        KeyEvent.KEYCODE_BUTTON_MODE));
+
     @SuppressLint("GestureBackNavigation")
     @Override public boolean dispatchKeyEvent(KeyEvent event) {
         if (event.getKeyCode() == KeyEvent.KEYCODE_BACK) {
             if (Build.VERSION.SDK_INT >= 33) return super.dispatchKeyEvent(event);
-            if (event.getAction() == KeyEvent.ACTION_DOWN || event.getAction() == KeyEvent.ACTION_UP) remoteKey(event.getAction(), KeyEvent.KEYCODE_BACK);
+            // (held, Back repeats: tv.js reads only the first press, so a long Back cannot also leave the app)
+            if (event.getAction() == KeyEvent.ACTION_DOWN || event.getAction() == KeyEvent.ACTION_UP) remoteKey(event.getAction(), KeyEvent.KEYCODE_BACK, event.getRepeatCount());
             return true;
         }
-        // Home, voice assistant, volume and other OS-owned keys keep their normal TV behavior.
-        switch (event.getKeyCode()) {
-            case KeyEvent.KEYCODE_HOME:
-            case KeyEvent.KEYCODE_POWER:
-            case KeyEvent.KEYCODE_SLEEP:
-            case KeyEvent.KEYCODE_WAKEUP:
-            case KeyEvent.KEYCODE_VOLUME_UP:
-            case KeyEvent.KEYCODE_VOLUME_DOWN:
-            case KeyEvent.KEYCODE_VOLUME_MUTE:
-            case KeyEvent.KEYCODE_MUTE:
-            case KeyEvent.KEYCODE_ASSIST:
-            case KeyEvent.KEYCODE_VOICE_ASSIST:
-            case KeyEvent.KEYCODE_APP_SWITCH:
-            case KeyEvent.KEYCODE_SETTINGS:
-            case KeyEvent.KEYCODE_PAIRING:
-                return super.dispatchKeyEvent(event);
-            default:
-                if (bridged(event.getDevice()) && (event.getAction() == KeyEvent.ACTION_DOWN || event.getAction() == KeyEvent.ACTION_UP)) {
-                    key(event);
-                    return true;
-                }
-                return super.dispatchKeyEvent(event);
+        // Home, voice assistant, search, volume and the other keys the game does not use keep their normal TV behavior.
+        if (GAME_KEYS.contains(event.getKeyCode()) && bridged(event.getDevice())
+            && (event.getAction() == KeyEvent.ACTION_DOWN || event.getAction() == KeyEvent.ACTION_UP)) {
+            key(event);
+            return true;
         }
+        return super.dispatchKeyEvent(event);
     }
 
     private void key(KeyEvent event) {
@@ -294,33 +303,50 @@ public final class MainActivity extends Activity implements InputManager.InputDe
             "repeat", event.getRepeatCount(), "time", event.getEventTime()));
     }
 
-    private void remoteKey(int action, int keyCode) {
+    private void remoteKey(int action, int keyCode, int repeat) {
         String code = KeyEvent.keyCodeToString(keyCode).replace("KEYCODE_", "");
         emit(json("type", "key", "device", json("id", REMOTE_BACK_DEVICE, "name", "TV remote", "remote", true),
-            "action", action == KeyEvent.ACTION_UP ? "up" : "down", "code", code, "repeat", 0, "time", android.os.SystemClock.uptimeMillis()));
+            "action", action == KeyEvent.ACTION_UP ? "up" : "down", "code", code, "repeat", repeat, "time", android.os.SystemClock.uptimeMillis()));
     }
+
+    private static final String[] AXIS_NAMES = {"x", "y", "z", "rz", "rx", "ry", "hatX", "hatY", "ltrigger", "rtrigger", "brake", "gas"};
+    private static final int[] AXIS_CODES = {
+        MotionEvent.AXIS_X, MotionEvent.AXIS_Y, MotionEvent.AXIS_Z, MotionEvent.AXIS_RZ,
+        MotionEvent.AXIS_RX, MotionEvent.AXIS_RY, MotionEvent.AXIS_HAT_X, MotionEvent.AXIS_HAT_Y,
+        MotionEvent.AXIS_LTRIGGER, MotionEvent.AXIS_RTRIGGER, MotionEvent.AXIS_BRAKE, MotionEvent.AXIS_GAS};
 
     @Override public boolean dispatchGenericMotionEvent(MotionEvent event) {
         if (event.isFromSource(InputDevice.SOURCE_JOYSTICK) || event.isFromSource(InputDevice.SOURCE_GAMEPAD)) {
             JSONObject axes = new JSONObject();
-            String[] names = {"x", "y", "z", "rz", "rx", "ry", "hatX", "hatY", "ltrigger", "rtrigger", "brake", "gas"};
-            int[] codes = {
-                MotionEvent.AXIS_X, MotionEvent.AXIS_Y, MotionEvent.AXIS_Z, MotionEvent.AXIS_RZ,
-                MotionEvent.AXIS_RX, MotionEvent.AXIS_RY, MotionEvent.AXIS_HAT_X, MotionEvent.AXIS_HAT_Y,
-                MotionEvent.AXIS_LTRIGGER, MotionEvent.AXIS_RTRIGGER, MotionEvent.AXIS_BRAKE, MotionEvent.AXIS_GAS};
-            for (int i = 0; i < codes.length; i++) put(axes, names[i], axis(event, codes[i], i >= 8, i == 6 || i == 7));
+            // only the axes the device has: tv.js tells the right stick (Z / RZ) from triggers reported on RX / RY
+            InputDevice input = event.getDevice();
+            for (int i = 0; i < AXIS_CODES.length; i++) {
+                InputDevice.MotionRange range = input == null ? null : input.getMotionRange(AXIS_CODES[i], event.getSource());
+                if (range == null && input != null) range = input.getMotionRange(AXIS_CODES[i]);
+                if (range != null) put(axes, AXIS_NAMES[i], axis(event, AXIS_CODES[i], range, i >= 8, i == 6 || i == 7));
+            }
+            // a stick wobbling inside its dead zone sends the same values again and again: nothing to tell the page
+            String values = axes.toString();
+            if (values.equals(lastAxes.get(event.getDeviceId()))) return true;
+            lastAxes.put(event.getDeviceId(), values);
             emit(json("type", "motion", "device", device(event.getDeviceId()), "axes", axes, "time", event.getEventTime()));
             return true;
         }
         return super.dispatchGenericMotionEvent(event);
     }
 
-    private float axis(MotionEvent event, int code, boolean trigger, boolean hat) {
-        InputDevice input = event.getDevice();
-        if (input == null) return 0;
-        InputDevice.MotionRange range = input.getMotionRange(code, event.getSource());
-        if (range == null) range = input.getMotionRange(code);
-        if (range == null) return 0;
+    /** Which axes are pushed past half way, either way: a d-pad on the hat axes, triggers, a stick's direction. */
+    private static int digital(JSONObject axes) {
+        int signature = 0;
+        if (axes == null) return 0;
+        for (int i = 0; i < AXIS_NAMES.length; i++) {
+            double v = axes.optDouble(AXIS_NAMES[i], 0);
+            signature |= (v > 0.5 ? 1 : v < -0.5 ? 2 : 0) << (2 * i);
+        }
+        return signature;
+    }
+
+    private static float axis(MotionEvent event, int code, InputDevice.MotionRange range, boolean trigger, boolean hat) {
         float value = event.getAxisValue(code);
         if (hat) return InputMath.clamp(value, -1, 1);
         return trigger ? InputMath.trigger(value, range.getMin(), range.getMax(), range.getFlat())
@@ -357,16 +383,19 @@ public final class MainActivity extends Activity implements InputManager.InputDe
     @Override public void onInputDeviceRemoved(int id) {
         JSONObject value = devices.get(id);
         devices.remove(id);
+        lastAxes.remove(id);
         emit(json("type", "device", "action", "disconnected", "device", value == null ? json("id", id) : value));
     }
 
     private void emit(JSONObject event) {
         if (!ready || webView == null) return;
-        // Preserve every button edge. Collapse only adjacent stick snapshots for the same device.
+        // Preserve every button edge. Collapse only adjacent stick snapshots for the same device, and only when no
+        // axis crossed half way (a d-pad on the hat axes or a trigger tapped between two frames must still arrive).
         if ("motion".equals(event.optString("type")) && !pending.isEmpty()) {
             JSONObject previous = pending.get(pending.size() - 1);
             if ("motion".equals(previous.optString("type")) && previous.optJSONObject("device") != null
-                && previous.optJSONObject("device").optInt("id") == event.optJSONObject("device").optInt("id")) {
+                && previous.optJSONObject("device").optInt("id") == event.optJSONObject("device").optInt("id")
+                && digital(previous.optJSONObject("axes")) == digital(event.optJSONObject("axes"))) {
                 pending.set(pending.size() - 1, event);
             } else pending.add(event);
         } else pending.add(event);
@@ -397,6 +426,8 @@ public final class MainActivity extends Activity implements InputManager.InputDe
     @Override protected void onPause() {
         resumed = false;
         if (nativeAudio != null) nativeAudio.setActive(false);
+        // (tv.js lets go of everything: the sticks are sent again from their next movement)
+        lastAxes.clear();
         emit(json("type", "lifecycle", "action", "pause"));
         flush();
         if (webView != null) webView.onPause();
@@ -410,6 +441,7 @@ public final class MainActivity extends Activity implements InputManager.InputDe
             immersive();
             if (resumed) emit(json("type", "lifecycle", "action", "resume"));
         } else {
+            lastAxes.clear();
             emit(json("type", "lifecycle", "action", "pause"));
             flush();
         }

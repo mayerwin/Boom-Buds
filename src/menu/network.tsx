@@ -8,14 +8,14 @@ import { CodeInput, Modal } from './ui.tsx';
 import { NetSession, type JoinOutcome } from '../net/netSession.ts';
 import { normalizeRoomCode } from '../net/room.ts';
 import { LanScanner, lanKeys, type LanGame } from '../net/lan.ts';
-import { BotCard, ColorPicker, ControlPicker, PlayerCard, TeamBalance, useJoinListener } from './players.tsx';
+import { BotCard, ColorPicker, ControlPicker, PlayerCard, TeamBalance, joinHint, useDeviceChanges, useJoinListener } from './players.tsx';
 import { withColor, withTeam } from './lineup.ts';
 import { RulesPanel, type Rules } from './rules.tsx';
 import { LobbyChat } from './chat.tsx';
-import { findSet } from '../app/controls.ts';
+import { findSet, idsClash, mergeHalves } from '../app/controls.ts';
 import { AI_DEFAULT, INPUT_AI, INPUT_KEY, INPUT_OFF } from '../app/session.ts';
 import type { Game } from '../app/Game.ts';
-import type { LobbyChange, LobbyModel } from './lobbyModel.ts';
+import type { LobbyChange, LobbyModel, LocalPlayer } from './lobbyModel.ts';
 
 const REASONS: Record<Exclude<JoinOutcome, 'ok'>, string> = {
   'not-found': 'No game with this code (check it, or ask the host to keep the lobby open)',
@@ -259,17 +259,29 @@ export function Lobby(props: { model: LobbyModel; onLeave: () => void }): JSX.El
   const mine = model.myPlayers;
   const myIds = mine.map((p) => p.ctl);
   const total = view.slots.filter((s) => s.type !== INPUT_OFF).length;
-  const canAdd = mine.length < 4 && total < 10;
-  const setMine = (ids: string[]) =>
-    model.setMine(ids.map((id) => {
-      const s = findSet(g.settings.controls, id);
-      const was = mine.find((p) => p.ctl === id);
-      return { ctl: id, label: s ? s.name : id, color: was?.color ?? -1, team: was?.team ?? -1 };
-    }));
-  useJoinListener(canAdd && picker === null, myIds, (id) => {
-    setMine([...myIds, id]);
+  const canAdd = total < 10;
+  /** this machine's players as they play now (those whose device is not there wait, and come back with it) */
+  const setMine = (next: LocalPlayer[]) => model.setWanted([...next, ...model.waiting]);
+  const entry = (id: string, was?: LocalPlayer): LocalPlayer => {
+    const s = findSet(g.settings.controls, id);
+    return { ctl: id, label: s ? s.name : id, color: was?.color ?? -1, team: was?.team ?? -1 };
+  };
+  useDeviceChanges(() => model.refreshMine());
+  useJoinListener(canAdd && picker === null && colorFor === null && kickFor === null, myIds, (j) => {
+    // (the model's players now: a join just before may not be drawn yet)
+    const now = model.myPlayers;
+    const swap = j.swap;
+    if (now.some((p) => p.ctl !== swap?.from && idsClash(g.settings.controls, p.ctl, j.id))) return;
+    setMine([...now.map((p) => (swap && p.ctl === swap.from ? entry(swap.to, p) : p)), entry(j.id)]);
     sound('ok');
   });
+  const removeMine = (k: number) => {
+    const now = model.myPlayers;
+    const rest = now.filter((_, i) => i !== k);
+    // whoever shared the gamepad gets all of it
+    const ids = mergeHalves(rest.map((p) => p.ctl), now[k].ctl);
+    setMine(rest.map((p, i) => (ids[i] === p.ctl ? p : entry(ids[i], p))));
+  };
 
   const link = `${location.origin}${location.pathname}?join=${net.code}`;
   const copy = async () => {
@@ -381,13 +393,15 @@ export function Lobby(props: { model: LobbyModel; onLeave: () => void }): JSX.El
                   onTeam={me ? () => model.setMyLook(me.ctl, withTeam({ color: me.color, team: me.team }, s.team ^ 1)) : undefined}
                   onColor={me ? () => setColorFor({ ctl: me.ctl, slot: i }) : undefined}
                   onPickSet={own ? () => setPicker(ownIndex) : undefined}
-                  onRemove={own && mine.length > 1 ? () => setMine(myIds.filter((_, k) => k !== ownIndex)) : undefined}
+                  onRemove={own && mine.length > 1 ? () => removeMine(ownIndex) : undefined}
                 />
               );
             })}
             {canAdd && <button class="pcard add" onClick={() => setPicker(-1)}>＋ Add a player on this device</button>}
           </div>
           {!mine.length && <div class="small muted">You are watching. Add a player to play from this device.</div>}
+          {canAdd && <div class="small muted">{joinHint(g)}</div>}
+          {!!model.waiting.length && <div class="small muted">Back with their device: {model.waiting.map((p) => p.label).join(', ')}</div>}
           <h2>Computer players</h2>
           <div class="players">
             {view.slots.map((s, i) => {
@@ -434,7 +448,7 @@ export function Lobby(props: { model: LobbyModel; onLeave: () => void }): JSX.El
           used={myIds}
           onClose={() => setPicker(null)}
           onPick={(id) => {
-            setMine(picker >= 0 ? myIds.map((x, k) => (k === picker ? id : x)) : [...myIds, id]);
+            setMine(picker >= 0 ? mine.map((p, k) => (k === picker ? entry(id, p) : p)) : [...mine, entry(id)]);
             setPicker(null);
           }}
         />

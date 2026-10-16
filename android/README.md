@@ -23,13 +23,19 @@ Network games work as on the web, with the website's players too.
 
 | | Move | Bomb | Special | Pause | Menus |
 | --- | --- | --- | --- | --- | --- |
-| Gamepad (Xbox, PlayStation, Switch Pro and other Bluetooth pads) | stick or d-pad | A | B | Start | d-pad, A selects, B goes back |
+| Gamepad (Xbox, PlayStation, Switch Pro and other Bluetooth pads) | stick or d-pad | A | B | Start | d-pad or a stick, A selects, B goes back |
+| Gamepad shared by two, left side | left stick or d-pad | LB | LT | Select | |
+| Gamepad shared by two, right side | right stick | A or RB | B or RT | Start | |
 | TV remote | arrows | OK | hold OK | Back | arrows, OK selects, Back goes back |
 | Keyboard / mouse | as on the website | | | Esc | as on the website |
 
-Up to 4 people play on one TV. In Local Game, player 1 is a gamepad when one is connected, otherwise the
-remote; other gamepads join with any button, and **Add player** can pick the remote. Back on the main screen
-leaves the app. Pair Bluetooth controllers in the TV's settings first.
+In Local Game, player 1 is a gamepad when one is connected, otherwise the remote. The others join by holding a
+button of their gamepad, or the remote's OK, for 0.8 s (a short press is a menu press); a second player on a
+gamepad holds a button on their side of it (LB: left, A: right), and **Add player** lists every set. The line-up
+is remembered by gamepad name: a player whose gamepad is off is hidden until it is back. In the menus the arrows
+always move to the nearest control; OK goes into a player's card (Back comes out) or starts changing a setting
+(← → change it, OK is done). Back on the main screen leaves the app. Pair Bluetooth controllers in the TV's
+settings first.
 
 The remote has one action button. OK is the bomb button: a bomb at once, and held, it carries a grabbed bomb.
 When the special button has a use for its bomber (a boxing glove, trigger bombs, or one of its kicked bombs

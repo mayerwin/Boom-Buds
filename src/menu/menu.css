@@ -153,11 +153,43 @@
 /* focus ring: keyboard and gamepad navigation */
 #menu-root :focus-visible,
 #pause-root :focus-visible,
-#menu-root .focus {
+#menu-root.kbd :focus,
+#pause-root.kbd :focus {
   outline: 3px solid var(--cyan);
   outline-offset: 2px;
   box-shadow: 0 0 0 6px rgba(47, 214, 255, 0.18);
 }
+/* a card entered with Enter (src/menu/nav.ts): its frame stays lit while its own controls have the focus */
+#menu-root [data-group]:focus-within:not(:focus) { outline: 2px dashed rgba(47, 214, 255, 0.7); outline-offset: 3px; }
+/* a setting with values to go through: focused, its arrows wait for Enter; being changed, they light up in gold */
+#menu-root [data-edit]:focus-visible:not([data-editing]) > button,
+#menu-root.kbd [data-edit]:focus:not([data-editing]) > button { opacity: 0.45; }
+#menu-root [data-edit][data-editing] { outline: 3px solid var(--accent-2); outline-offset: 2px; box-shadow: 0 0 0 6px rgba(255, 210, 63, 0.22); }
+#menu-root [data-edit][data-editing] > button { color: var(--accent-2); }
+
+/* holding a gamepad's button to join a line-up */
+.hold-join {
+  position: fixed;
+  left: 50%;
+  bottom: max(9vh, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+  padding: 10px 18px;
+  border-radius: 14px;
+  background: rgba(20, 15, 44, 0.92);
+  border: 1px solid rgba(255, 210, 63, 0.5);
+  color: #fff;
+  font: 700 var(--fs-small, 14px) / 1.2 system-ui, sans-serif;
+  pointer-events: none;
+  max-width: 92vw;
+  text-align: center;
+}
+.hold-join i { display: block; width: min(320px, 70vw); height: 6px; border-radius: 999px; background: rgba(255, 255, 255, 0.15); overflow: hidden; }
+.hold-join b { display: block; height: 100%; background: linear-gradient(90deg, #ffd84a, #ff9a24); transform-origin: left; transform: scaleX(0); }
 
 /* ---------------------------------------------------------------- art backdrop */
 /* the key art behind every menu screen: sharp on the main menu, blurred and darkened elsewhere */

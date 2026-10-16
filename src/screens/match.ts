@@ -23,6 +23,9 @@ import { CAMP_FAILED } from '../game/sim/campaign.ts';
 import { allSchemes, parseSchemeText, schemeFileText } from '../app/schemes.ts';
 import { specialLevels } from '../game/levels.ts';
 import { cleanLevels } from '../app/settings.ts';
+import { classicChoices, classicInput, idsClash, keyboardsHere, slotSetId } from '../app/controls.ts';
+import { originalMouse } from '../app/modes.ts';
+import { lineupFromSlots, savedLineupSlots, schemeTeams, storeLineup } from '../menu/lineup.ts';
 
 /** power-up type -> "power <name>" sequence */
 const POWER_SEQ = ['bomb', 'flame', 'disease', 'kicker', 'skate', 'punch', 'grab', 'spooge', 'goldflame', 'trigger', 'jelly', 'disease3', 'random', 'clog'];
@@ -219,18 +222,26 @@ async function matchSetup(g: Game): Promise<MatchParams | null> {
     if (session.matchEnd) return null;
   }
   if (session.netMode === 0) {
+    // the line-up kept by the modern menus (or by this screen at an earlier visit), the first time (a demo
+    // leaves it for the next setup)
+    if (session.fromLineup && !session.attract) {
+      session.slots = savedLineupSlots(g);
+      session.fromLineup = false;
+    }
     for (const sl of session.slots) if (sl.type === INPUT_NET) sl.type = INPUT_OFF;
   } else if (net) hostAssignSlots(g);
-  // scheme_parse: the teams come from the scheme's start entries at every match setup
+  // scheme_parse: the teams come from the scheme's start entries at every match setup (Boom Buds: except the
+  // team a player chose, in the modern menus or with T here)
   session.slots.forEach((sl, i) => {
     const sst = scheme.starts[i];
-    sl.team = sst ? sst[2] : i & 1;
+    if (!sl.teamChosen || session.attract) sl.team = sst ? sst[2] : i & 1;
   });
   await ui.randomGlue();
   if (session.attract) {
     for (const sl of session.slots) {
       sl.type = INPUT_OFF;
       sl.dev = 0;
+      sl.ctl = undefined;
     }
     let n = (ui.rand() % 10) + 1;
     if (n < 3) n = 3;
@@ -248,6 +259,7 @@ async function matchSetup(g: Game): Promise<MatchParams | null> {
   const view: SetupView = { teamPlay: st.team_play, winByKills: st.team_play ? 0 : st.win_by_kills };
   net?.broadcast({ t: 'setup', slots: session.slots, ...view, level: st.levelno, wins: st.num_to_win_match });
   await playerSetupScreen(g, view);
+  keepLineup(g);
   if (session.matchEnd) return null;
   net?.broadcast({ t: 'key', k: KEY_SETUP_DONE });
   if (session.campaign) return buildParams(g, st.levelno); // campaign: no level/wins screen
@@ -266,6 +278,15 @@ async function matchSetup(g: Game): Promise<MatchParams | null> {
   return params;
 }
 
+/** A local game's player setup is the Local Game's line-up of the modern menus too: it keeps what was set here. */
+function keepLineup(g: Game): void {
+  const session = g.session;
+  if (session.netMode !== 0 || session.attract || session.campaign) return;
+  const { players, bots } = lineupFromSlots(g, session.slots, g.settings.schemefilename);
+  storeLineup(g, players, bots);
+  g.app.saveSettings();
+}
+
 /** Host: players of machines that left become computer players or are switched off. Returns true if any. */
 function dropLostMachines(g: Game): boolean {
   const session = g.session;
@@ -277,6 +298,7 @@ function dropLostMachines(g: Game): boolean {
     if ((sl.type === INPUT_KEY || sl.type === INPUT_JOY) && sl.owner !== net.myId && !members.has(sl.owner)) {
       sl.type = g.settings.lost_net_revert_ai ? INPUT_AI : INPUT_OFF;
       sl.dev = 0;
+      sl.ctl = undefined;
       sl.owner = net.myId;
       changed = true;
     }
@@ -295,6 +317,7 @@ function hostAssignSlots(g: Game): void {
     for (const sl of session.slots) {
       sl.type = INPUT_OFF;
       sl.dev = 0;
+      sl.ctl = undefined;
       sl.owner = 0;
     }
     session.slots[0] = { ...session.slots[0], type: INPUT_KEY, dev: 0, owner: net.myId };
@@ -346,7 +369,15 @@ async function clientSetup(g: Game): Promise<MatchParams | null> {
 function inputLabel(g: Game, p: number): string {
   const ui = g.ui;
   const sl = g.session.slots[p];
-  switch (g.session.displayType(p)) {
+  const type = g.session.displayType(p);
+  // a player of this machine with a control set of its own (Boom Buds offers every set: KEY 2, JOY 0 L, MOUSE...)
+  if ((type === INPUT_KEY || type === INPUT_JOY) && sl.ctl) {
+    const c = classicInput(g.settings.controls, sl.ctl);
+    if (c.word) return c.word;
+    if (c.dev < 0) return c.type === INPUT_JOY ? `JOY ?${c.extra}` : 'KEY ?';
+    return c.type === INPUT_JOY ? ui.fmt(223, c.dev) + c.extra : ui.fmt(222, c.dev);
+  }
+  switch (type) {
     case INPUT_AI: return `${ui.msg(221)} ${sl.ai}`; // skill level: Boom Buds addition
     case INPUT_KEY: return ui.fmt(222, sl.dev);
     case INPUT_JOY: return ui.fmt(223, sl.dev);
@@ -355,37 +386,70 @@ function inputLabel(g: Game, p: number): string {
   }
 }
 
+interface SlotInput {
+  type: number;
+  dev: number;
+  ai: number;
+  /** the control set of a human player */
+  ctl?: string;
+}
+
 /**
  * player_cycle_input (0x421e80): the next input of slot `p` (not applied):
- * OFF -> AI -> KEY 0 -> KEY 1 -> JOY 0 .. -> OFF. (The computer player's skill is set separately.)
+ * OFF -> AI -> KEY 0 -> KEY 1 -> JOY 0 .. -> OFF. (The computer player's skill is set separately.) Boom Buds
+ * goes through every control set of this machine where the original had KEY 0, KEY 1 and the joysticks: the other
+ * keyboard sets after KEY 1, each half of a gamepad after it, then the mouse and touch controls (src/app/controls.ts
+ * classicChoices); a pixel replay of the original, with two keyboard sets and no gamepad, cycles as it did.
  */
-function cycledInput(g: Game, p: number): { type: number; dev: number; ai: number } {
+function cycledInput(g: Game, p: number): SlotInput {
   const session = g.session;
   const sl = session.slots[p];
-  const joys = g.joystickCount();
+  const prefs = g.settings.controls;
+  const choices = classicChoices(prefs, !originalMouse(g.settings), g.app.isTouch, keyboardsHere(g.app.input));
   const ai = sl.ai;
+  const human = (id: string | undefined): SlotInput => {
+    if (!id) return { type: INPUT_OFF, dev: 0, ai };
+    const c = classicInput(prefs, id);
+    return { type: c.type, dev: Math.max(0, c.dev), ai, ctl: id };
+  };
   switch (sl.type) {
     case INPUT_OFF:
-      return session.netMode === 2 || session.campaign ? { type: INPUT_KEY, dev: 0, ai } : { type: INPUT_AI, dev: 0, ai };
+      return session.netMode === 2 || session.campaign ? human(choices[0]) : { type: INPUT_AI, dev: 0, ai };
     case INPUT_AI:
-      return { type: INPUT_KEY, dev: 0, ai };
+      return human(choices[0]);
     case INPUT_KEY:
-      if (sl.dev === 0) return { type: INPUT_KEY, dev: 1, ai };
-      return joys > 0 ? { type: INPUT_JOY, dev: 0, ai } : { type: INPUT_OFF, dev: 0, ai };
-    case INPUT_JOY:
-      return sl.dev + 1 < joys ? { type: INPUT_JOY, dev: sl.dev + 1, ai } : { type: INPUT_OFF, dev: 0, ai };
+    case INPUT_JOY: {
+      const i = choices.indexOf(slotSetId(prefs, sl));
+      return human(i >= 0 ? choices[i + 1] : undefined);
+    }
     default:
-      return { type: sl.type, dev: sl.dev, ai };
+      return { type: sl.type, dev: sl.dev, ai, ctl: sl.ctl };
   }
 }
 
 /** Change a slot as machine `actor` (the host applies its own changes and the clients' requests). */
-function applySlot(g: Game, p: number, type: number, dev: number, ai: number, actor: number): void {
+function applySlot(g: Game, p: number, type: number, dev: number, ai: number, actor: number, ctl?: unknown): void {
   const sl = g.session.slots[p];
+  const human = type === INPUT_KEY || type === INPUT_JOY;
   sl.type = type;
   sl.dev = dev;
   sl.ai = Number.isInteger(ai) ? Math.max(0, Math.min(5, ai)) : AI_DEFAULT;
-  sl.owner = type === INPUT_KEY || type === INPUT_JOY ? actor : g.session.net ? g.session.net.hostId : 0;
+  sl.ctl = human && typeof ctl === 'string' && ctl.length <= 200 ? ctl : undefined;
+  sl.owner = human ? actor : g.session.net ? g.session.net.hostId : 0;
+}
+
+/** players_count_input_conflicts: two players of one machine on the same control set (or parts of one). */
+function inputConflicts(g: Game): number {
+  const slots = g.session.slots;
+  const prefs = g.settings.controls;
+  const human = (i: number) => slots[i].type === INPUT_KEY || slots[i].type === INPUT_JOY;
+  let n = 0;
+  for (let a = 0; a < 10; a++) {
+    for (let b = a + 1; b < 10; b++) {
+      if (human(a) && human(b) && slots[a].owner === slots[b].owner && idsClash(prefs, slotSetId(prefs, slots[a]), slotSetId(prefs, slots[b]))) n++;
+    }
+  }
+  return n;
 }
 
 /** a tap on a computer player's "AI n" (no key has this code) */
@@ -412,7 +476,7 @@ async function playerSetupScreen(g: Game, view: SetupView): Promise<void> {
         const sl = session.slots[p];
         const human = sl.type === INPUT_KEY || sl.type === INPUT_JOY;
         if (human && sl.owner !== from) continue; // another machine's player
-        applySlot(g, p, Number(msg.type), Number(msg.dev), Number(msg.ai), from);
+        applySlot(g, p, Number(msg.type), Number(msg.dev), Number(msg.ai), from, msg.ctl);
         changed = true;
       }
       if (changed) net.broadcast({ t: 'slots', slots: session.slots });
@@ -471,10 +535,10 @@ async function playerSetupScreen(g: Game, view: SetupView): Promise<void> {
     if (isRealKey(k)) ui.letter();
     const sl = session.slots[sel];
     const remote = session.displayType(sel) === INPUT_NET;
-    const change = (type: number, dev: number, ai = sl.ai) => {
-      if (client && net) net.send(net.hostId, { t: 'set', s: sel, type, dev, ai });
+    const change = (type: number, dev: number, ai = sl.ai, ctl?: string) => {
+      if (client && net) net.send(net.hostId, { t: 'set', s: sel, type, dev, ai, ctl });
       else {
-        applySlot(g, sel, type, dev, ai, session.myId);
+        applySlot(g, sel, type, dev, ai, session.myId, ctl);
         if (net) net.broadcast({ t: 'slots', slots: session.slots });
       }
     };
@@ -489,7 +553,7 @@ async function playerSetupScreen(g: Game, view: SetupView): Promise<void> {
         if (remote) ui.refuse();
         else {
           const c = cycledInput(g, sel);
-          change(c.type, c.dev, c.ai);
+          change(c.type, c.dev, c.ai, c.ctl);
         }
         break;
       case 0x31:
@@ -528,6 +592,8 @@ async function playerSetupScreen(g: Game, view: SetupView): Promise<void> {
         if (client || sl.type === INPUT_OFF) ui.refuse();
         else {
           sl.team = sl.team === 0 ? 1 : 0;
+          // (a team other than the scheme's stays for the next matches, and in the modern menus)
+          sl.teamChosen = sl.team !== schemeTeams(g, g.settings.schemefilename)[sel];
           if (net) net.broadcast({ t: 'slots', slots: session.slots });
         }
         break;
@@ -536,6 +602,7 @@ async function playerSetupScreen(g: Game, view: SetupView): Promise<void> {
           for (const s of session.slots) {
             s.type = INPUT_AI;
             s.dev = 0;
+            s.ctl = undefined;
           }
         }
         break;
@@ -553,7 +620,7 @@ async function playerSetupScreen(g: Game, view: SetupView): Promise<void> {
           break;
         }
         if (start + ui.minWaitSecs() * 1000 >= performance.now()) break;
-        if (session.inputConflicts() !== 0) {
+        if (inputConflicts(g) !== 0) {
           ui.mouseShow();
           await g.dlg.msgboxOk(ui.msg(96), ui.msg(45), ui.col.darkRed, ui.col.yellow);
           ui.mouseHide();

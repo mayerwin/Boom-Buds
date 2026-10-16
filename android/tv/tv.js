@@ -25,6 +25,8 @@
   /** a tap reads as pressed for at least this long (ms) and through the next display frame */
   const TAP_MS = 60;
   const REMOTE = 'remote';
+  /** the d-pad's buttons on the hat axes: [button, axis (0 x, 1 y), direction] */
+  const HAT_DIRS = [[12, 1, -1], [13, 1, 1], [14, 0, -1], [15, 0, 1]];
 
   /**
    * The gamepads, from the forwarded events. `backButton()` says which button Back is right now (B in the
@@ -39,6 +41,10 @@
       this.listeners = [];
       /** display frames so far (install() counts them): a tap stays pressed until a whole frame has seen it */
       this.frame = 0;
+      /** the last snapshot, for the rest of its display frame (the game reads the gamepads many times a frame) */
+      this.cache = null;
+      this.cacheFrame = -1;
+      this.cacheAt = 0;
     }
 
     on(fn) {
@@ -87,6 +93,14 @@
 
     /** One forwarded event; returns the button pressed, if any. */
     input(e) {
+      this.cache = null;
+      const pressed = this.apply(e);
+      // (a 'connected' listener may have read the gamepads before the event's button went down)
+      this.cache = null;
+      return pressed;
+    }
+
+    apply(e) {
       const now = this.now();
       if (e.type === 'device') {
         if (e.action === 'disconnected') this.remove(e.device);
@@ -117,18 +131,33 @@
         const p = this.pad(e.device);
         const a = e.axes;
         p.timestamp = now;
-        p.axes = [a.x || 0, a.y || 0, a.z || a.rx || 0, a.rz || a.ry || 0];
-        p.hat = [a.hatX || 0, a.hatY || 0];
-        p.analog[6] = Math.max(a.ltrigger || 0, a.brake || 0);
-        p.analog[7] = Math.max(a.rtrigger || 0, a.gas || 0);
+        // the right stick: Z and RZ on Android's gamepads; RX and RY on those without Z / RZ (MainActivity only
+        // sends the axes a device has: a trigger on RX must not read as a stick pushed left), and on those whose
+        // Z and RZ are triggers (a gamepad without its own key layout: both rest at -1 together, which no stick does)
+        if ('rx' in a && 'z' in a && a.z <= -0.95 && a.rz <= -0.95) p.zTriggers = true;
+        const zx = 'z' in a && !p.zTriggers, zy = 'rz' in a && !p.zTriggers;
+        p.axes = [a.x || 0, a.y || 0, (zx ? a.z : a.rx) || 0, (zy ? a.rz : a.ry) || 0];
+        // a d-pad on the hat axes: a direction pressed is kept for a tap, as a key is (press and release can both
+        // come between two display frames)
+        const hat = [a.hatX || 0, a.hatY || 0];
+        for (const [b, axis, sign] of HAT_DIRS) {
+          if (hat[axis] * sign > 0.5 && !(p.hat[axis] * sign > 0.5)) { p.until[b] = now + TAP_MS; p.at[b] = this.frame; }
+        }
+        p.hat = hat;
+        const trigger = (v) => (p.zTriggers && v !== undefined ? (v + 1) / 2 : 0);
+        p.analog[6] = Math.max(a.ltrigger || 0, a.brake || 0, trigger(a.z));
+        p.analog[7] = Math.max(a.rtrigger || 0, a.gas || 0, trigger(a.rz));
       }
       return -1;
     }
 
-    /** navigator.getGamepads(), standard mapping */
+    /** navigator.getGamepads(), standard mapping (the same snapshot again within a display frame, until an event) */
     snapshot() {
       const now = this.now();
-      return this.pads.map((p) => {
+      if (this.cache && this.cacheFrame === this.frame && now - this.cacheAt < 50) return this.cache;
+      this.cacheFrame = this.frame;
+      this.cacheAt = now;
+      this.cache = this.pads.map((p) => {
         if (!p) return null;
         const buttons = p.held.map((h, i) => {
           let value = h || now < p.until[i] || this.frame <= p.at[i] + 1 ? 1 : 0;
@@ -141,6 +170,7 @@
         });
         return { id: p.id, index: p.index, connected: true, mapping: 'standard', timestamp: p.timestamp, axes: p.axes.slice(), buttons, vibrationActuator: null };
       });
+      return this.cache;
     }
   }
 
@@ -176,6 +206,11 @@
           win.__boombuds?.app?.audio?.unlock?.();
         }
         const g = game();
+        // (a page that failed to start, or is still loading, has nothing to go back in: Back leaves, as TV apps do)
+        if (e.code === 'BACK' && !g) {
+          win.AndroidHost?.exit?.();
+          return;
+        }
         if (e.code === 'BACK' && pressed === 1 && g && g.menus && g.menus.screen === 'home' && !doc.querySelector('.modal-wrap') &&
           doc.getElementById('menu-root')?.classList.contains('open')) {
           win.AndroidHost?.exit?.(); // Back on the main screen leaves the app, as TV apps do

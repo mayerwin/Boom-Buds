@@ -5,7 +5,7 @@ import type { JSX } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
 import { useMenu } from './ctx.ts';
 import { KeyCapture, KeyCluster, setDescription } from './players.tsx';
-import { BUILTIN_KEY_SETS, availableSets, padName, type ControlSet } from '../app/controls.ts';
+import { BUILTIN_KEY_SETS, availableSets, classicKeySets, type ControlSet } from '../app/controls.ts';
 
 export function Controls(): JSX.Element {
   const { g, back, save, toast } = useMenu();
@@ -53,7 +53,10 @@ export function Controls(): JSX.Element {
       <div class="body" style={{ display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
         <div class="panel">
           <h2>Keyboard sets <span class="hint">keys light up when you press them</span></h2>
-          <div class="small muted">Keyboard right and Keyboard left are also KEY 0 and KEY 1 in the original 1997 menus.</div>
+          <div class="small muted">
+            Up to four players share a keyboard (some keyboards cannot tell many keys held at once apart). In the original
+            1997 menus the sets are KEY 0, KEY 1 and so on, as marked.
+          </div>
           <div class="sets">
             {keySets.map((s) => (
               <div class="set-card">
@@ -69,7 +72,9 @@ export function Controls(): JSX.Element {
                       onInput={(e) => update({ ...s, name: (e.target as HTMLInputElement).value || s.name })}
                     />
                   ) : (
-                    <b class="grow">{s.name}</b>
+                    <b class="grow">
+                      {s.name} <span class="small muted">· KEY {classicKeySets(st.controls).indexOf(s)}</span>
+                    </b>
                   )}
                   <button class="btn small" onClick={() => setEdit(s)}>Change keys</button>
                   <button class="btn small ghost" onClick={() => setRenaming(s.id)} aria-label={`rename ${s.name}`}>✎</button>
@@ -105,11 +110,11 @@ export function Controls(): JSX.Element {
           </div>
         </div>
         <div class="panel">
-          <h2>Gamepads, mouse and touch</h2>
+          <h2>Gamepads, mouse and touch <span class="hint">two players can share a gamepad, one on each side</span></h2>
           <div class="sets">
             {others.map((s) => (
               <div class="set-card">
-                <b>{s.kind === 'pad' ? padName(pads[s.pad ?? 0]) : s.name}</b>
+                <b>{s.name}</b>
                 <span class="small muted">{setDescription(s)}</span>
               </div>
             ))}

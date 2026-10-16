@@ -4,6 +4,14 @@ import type { ComponentChildren, JSX } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { CODE_ALPHABET } from '../net/room.ts';
 
+/**
+ * A setting being changed: Enter (gamepad A) on it starts that, then Left / Right change its value
+ * (src/menu/nav.ts); until then the arrows move between the controls.
+ */
+export function changing(e: Event): boolean {
+  return (e.currentTarget as HTMLElement).dataset.editing !== undefined;
+}
+
 /** A setting with Left / Right steps (keyboard, gamepad, or the arrow buttons); `asked`: a request to the host. */
 export function Stepper<T>(props: {
   label: string;
@@ -32,10 +40,12 @@ export function Stepper<T>(props: {
       <div
         class="stepper"
         tabIndex={disabled || !onChange ? -1 : 0}
+        data-edit={disabled || !onChange ? undefined : ''}
         aria-label={props.label}
         onKeyDown={(e) => {
+          if (!changing(e)) return;
           if (e.key === 'ArrowLeft') { e.preventDefault(); step(-1); }
-          else if (e.key === 'ArrowRight' || e.key === 'Enter' || e.key === ' ') { e.preventDefault(); step(1); }
+          else if (e.key === 'ArrowRight') { e.preventDefault(); step(1); }
         }}
       >
         {onChange && !disabled && <button tabIndex={-1} onClick={() => step(-1)} aria-label="previous">◀</button>}
@@ -74,12 +84,12 @@ export function Stars(props: { value: number; onChange?: (v: number) => void }):
     <div
       class="stars"
       tabIndex={onChange ? 0 : -1}
+      data-edit={onChange ? '' : undefined}
       aria-label={value ? `skill ${value} of 5` : 'the original 1997 computer player'}
       onKeyDown={(e) => {
-        if (!onChange) return;
+        if (!onChange || !changing(e)) return;
         if (e.key === 'ArrowLeft') { e.preventDefault(); onChange(Math.max(0, value - 1)); }
         else if (e.key === 'ArrowRight') { e.preventDefault(); onChange(Math.min(5, value + 1)); }
-        else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onChange((value + 1) % 6); }
       }}
     >
       <button tabIndex={-1} class={`orig ${value === 0 ? 'on' : ''}`} disabled={!onChange} onClick={() => onChange?.(0)} aria-label="the original 1997 computer player" title="The original game's computer player">
@@ -101,7 +111,10 @@ export function Modal(props: { title: string; children: ComponentChildren; onClo
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const prev = document.activeElement as HTMLElement | null;
-    const first = ref.current?.querySelector<HTMLElement>('[data-autofocus], button, [tabindex="0"], input');
+    // the dialog's preferred control, else its first one but the ✕ (OK / A must not close a dialog that just opened)
+    const el = ref.current;
+    const all = el ? [...el.querySelectorAll<HTMLElement>('button:not([disabled]), [tabindex="0"], input:not([disabled])')] : [];
+    const first = el?.querySelector<HTMLElement>('[data-autofocus]:not([disabled])') ?? all.find((e) => !e.matches('h2 button')) ?? all[0];
     first?.focus();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && props.onClose) {

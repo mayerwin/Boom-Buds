@@ -1,6 +1,9 @@
 // The pause menu of a round (Esc, or the ESC button on touch screens). The round stands still while the game
 // is paused: in a network game for everybody (src/screens/round.ts), and whoever paused, anyone can resume.
 
+import { connectedPads } from '../engine/input.ts';
+import { K, PadKeys } from '../ui/menuInput.ts';
+
 const ROOT_ID = 'pause-root';
 
 export interface PauseChoice<T> {
@@ -61,14 +64,14 @@ export function openPauseMenu<T>(
   const padReady = () => performance.now() >= t0 + Math.max(graceMs, padGraceMs);
   let raf = 0;
   let closed = false;
-  const prev = new Map<number, boolean[]>();
+  const startWas = new Map<number, boolean>();
   const close = () => {
     if (closed) return;
     closed = true;
     window.removeEventListener('keydown', onKey, true);
     cancelAnimationFrame(raf);
     panel.remove();
-    if (!host.childElementCount) host.classList.remove('open');
+    if (!host.childElementCount) host.classList.remove('open', 'kbd');
   };
   const choose = (i: number) => {
     if (closed || !ready()) return;
@@ -78,7 +81,7 @@ export function openPauseMenu<T>(
   buttons.forEach((b, i) => (b.onclick = () => choose(i)));
   const move = (d: number) => {
     const i = buttons.indexOf(document.activeElement as HTMLButtonElement);
-    buttons[(i + d + buttons.length) % buttons.length].focus();
+    buttons[i < 0 ? 0 : (i + d + buttons.length) % buttons.length].focus();
   };
   const activate = () => {
     const i = buttons.indexOf(document.activeElement as HTMLButtonElement);
@@ -94,19 +97,28 @@ export function openPauseMenu<T>(
     else if (e.key === 'Enter' || e.key === ' ') activate();
   };
   window.addEventListener('keydown', onKey, true);
-  const poll = () => {
+  // gamepads and the TV remote: the d-pad or a stick move, A chooses, B, Start or Select resume
+  const keys = new PadKeys();
+  const poll = (t: number) => {
     raf = requestAnimationFrame(poll);
-    for (const gp of navigator.getGamepads?.() ?? []) {
-      if (!gp) continue;
-      const now = gp.buttons.map((b) => b.pressed);
-      const was = prev.get(gp.index);
-      prev.set(gp.index, now);
-      if (!was || !padReady()) continue;
-      const edge = (n: number) => now[n] && !was[n];
-      if (edge(0)) activate();
-      else if (edge(1) || edge(9)) choose(0);
-      else if (edge(12)) move(-1);
-      else if (edge(13)) move(1);
+    const codes = keys.poll(t);
+    let start = false;
+    for (const gp of connectedPads()) {
+      const on = !!gp.buttons[9]?.pressed || !!gp.buttons[8]?.pressed;
+      const was = startWas.get(gp.index);
+      startWas.set(gp.index, on);
+      if (on && was === false) start = true;
+    }
+    if (!padReady() || closed) return;
+    if (start) return choose(0);
+    // (a focus ring for whoever moves with a gamepad, even after a click)
+    if (codes.length) host.classList.add('kbd');
+    for (const k of codes) {
+      if (closed) return;
+      if (k === K.ENTER) activate();
+      else if (k === K.ESC) choose(0);
+      else if (k === K.UP || k === K.LEFT) move(-1);
+      else if (k === K.DOWN || k === K.RIGHT) move(1);
     }
   };
   raf = requestAnimationFrame(poll);

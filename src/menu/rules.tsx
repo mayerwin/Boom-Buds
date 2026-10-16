@@ -5,7 +5,7 @@
 import type { JSX } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
 import { useMenu } from './ctx.ts';
-import { Modal, Stepper, Toggle, Picker } from './ui.tsx';
+import { Modal, Stepper, Toggle, Picker, changing } from './ui.tsx';
 import { ARENA_COUNT } from './art.ts';
 import { cleanLevels, type Settings } from '../app/settings.ts';
 import type { Game } from '../app/Game.ts';
@@ -212,13 +212,13 @@ export function ArenaPicker(props: { rules: ArenaChoice; onChange?: (c: ArenaCho
     <div
       class={`arena ${props.asked ? 'asked' : ''}`}
       tabIndex={onChange ? 0 : -1}
+      data-edit={onChange ? '' : undefined}
       aria-label={`arena: ${name}`}
       onKeyDown={(e) => {
-        if (!onChange) return;
+        // (Left / Right go through the arenas once Enter started changing the choice: src/menu/nav.ts)
+        if (!onChange || e.target !== e.currentTarget || !changing(e)) return;
         if (e.key === 'ArrowLeft') { e.preventDefault(); go(-1); }
         else if (e.key === 'ArrowRight') { e.preventDefault(); go(1); }
-        else if ((e.key === 'Enter' || e.key === ' ') && level === -3) { e.preventDefault(); setPicking(true); }
-        else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(1); }
       }}
     >
       {onChange ? <button class="btn icon" tabIndex={-1} onClick={() => go(-1)} aria-label="previous arena">◀</button> : <span />}
@@ -230,7 +230,8 @@ export function ArenaPicker(props: { rules: ArenaChoice; onChange?: (c: ArenaCho
         <div class="pic list">
           <Mosaic levels={rules.levels} />
           {onChange && (
-            <button class="btn small edit" tabIndex={-1} onClick={() => setPicking(true)}>
+            // (a control of its own: the arrows reach it, Enter opens the list of arenas)
+            <button class="btn small edit" onClick={() => setPicking(true)}>
               {ownPick ? '✎ Change' : '✎ Edit'}
             </button>
           )}

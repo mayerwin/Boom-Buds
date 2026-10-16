@@ -14,8 +14,10 @@ import { editorEnter } from '../screens/editor.ts';
 import { Menus } from '../menu/index.tsx';
 import { showSplash } from '../menu/splash.tsx';
 import type { ScreenId } from '../menu/ctx.ts';
-import { findSet } from './controls.ts';
-import { INPUT_AI, INPUT_KEY, INPUT_OFF, AI_DEFAULT } from './session.ts';
+import { firstPlayer, initialLineup } from '../menu/local.tsx';
+import { playingNow } from '../menu/lineup.ts';
+import { classicInput, findSet } from './controls.ts';
+import { INPUT_OFF, AI_DEFAULT } from './session.ts';
 import { K } from '../ui/menuInput.ts';
 import { SCREEN_W, SCREEN_H } from '../engine/constants.ts';
 
@@ -60,6 +62,7 @@ export class Game {
       await this.app.gfx.loadSprites((f) => splash.progress(f));
       splash.progress(1);
       this.session.assignDefaults(this.joystickCount(), !!this.settings.assign_keyboards);
+      this.session.fromLineup = this.settings.localPlayers.length > 0;
       // the menus take over from the splash (it stays until they are on screen)
       this.removeSplash = () => splash.done();
       return;
@@ -81,6 +84,8 @@ export class Game {
     this.dlg.progressDraw(100);
     await ui.present();
     this.session.assignDefaults(this.joystickCount(), !!this.settings.assign_keyboards);
+    // the line-up kept by the modern menus (or an earlier visit of the player setup) comes back at the first setup
+    this.session.fromLineup = this.settings.localPlayers.length > 0;
   }
 
   async run(): Promise<void> {
@@ -108,11 +113,13 @@ export class Game {
   /**
    * The original program flow: title picture, main menu. The way back to the modern menus is the "Back to
    * today" button in the top right corner, in the style of the time (in the bar beside the picture when there
-   * is room for it; over the picture's corner otherwise, faded until pointed at and hidden during rounds),
-   * and Ctrl+M at any time.
+   * is room for it; over the picture's corner otherwise, faded until pointed at), hidden during rounds, and
+   * Ctrl+M at any time.
    */
   private async classicMenus(): Promise<void> {
     this.app.touchAuto = true;
+    // (from the modern menus, which hid them: the on-screen controls are back on a touch screen)
+    this.app.touch.show(this.app.isTouch);
     const toModern = () => {
       this.settings.classicMenus = 0;
       this.app.saveSettings();
@@ -124,15 +131,20 @@ export class Game {
     back.title = 'Leave 1997 mode for the modern menus (Ctrl+M)';
     back.onclick = toModern;
     document.body.appendChild(back);
+    // (measured while shown: a hidden button has no size, and the place it gets must not depend on that)
+    let size = { w: 0, h: 0 };
     const place = () => {
+      const hide = !!this.runner;
+      if (back.hidden !== hide) back.hidden = hide;
+      if (hide) return;
+      if (back.offsetWidth) size = { w: back.offsetWidth, h: back.offsetHeight };
       const v = this.app.renderer.viewport;
-      const room = window.innerWidth - (v.x + v.w) >= back.offsetWidth + 16 || v.y >= back.offsetHeight + 16;
+      const room = window.innerWidth - (v.x + v.w) >= size.w + 16 || v.y >= size.h + 16;
       back.classList.toggle('over', !room);
-      back.style.display = !room && this.runner ? 'none' : '';
     };
     place();
     window.addEventListener('resize', place);
-    setInterval(place, 500);
+    setInterval(place, 250);
     window.addEventListener('keydown', (e) => {
       if (e.ctrlKey && e.code === 'KeyM') toModern();
     });
@@ -173,7 +185,7 @@ export class Game {
         await editorEnter(this);
         screen = 'options';
       } else if (e.kind === 'campaign') {
-        this.slotsFromLocalSetup(false);
+        this.slotsFromLocalSetup();
         this.prepareTouch();
         await playCampaign(this);
         screen = 'options';
@@ -182,16 +194,14 @@ export class Game {
     }
   }
 
-  /** Session slots from the last Local Game line-up (humans first, then computer players). */
-  private slotsFromLocalSetup(withBots: boolean): void {
-    const st = this.settings;
+  /** Session slots of a campaign: the people of the last Local Game line-up whose device is there. */
+  private slotsFromLocalSetup(): void {
     const s = this.session;
     s.slots = s.slots.map((x, i) => ({ ...x, type: INPUT_OFF, dev: 0, owner: 0, ai: AI_DEFAULT, ctl: undefined, team: i & 1 }));
-    const players = st.localPlayers.length ? st.localPlayers : [this.app.isTouch ? 'touch' : 'kb-arrows'];
-    players.forEach((id, i) => (s.slots[i] = { ...s.slots[i], type: INPUT_KEY, ctl: id }));
-    if (withBots) st.localBots.forEach((ai, k) => {
-      const i = players.length + k;
-      if (i < 10) s.slots[i] = { ...s.slots[i], type: INPUT_AI, ai };
+    const players = playingNow(this, initialLineup(this).players, 0);
+    (players.length ? players : [firstPlayer(this)]).forEach((p, i) => {
+      const c = classicInput(this.settings.controls, p.ctl);
+      s.slots[i] = { ...s.slots[i], type: c.type, dev: Math.max(0, c.dev), ctl: p.ctl };
     });
   }
 
