@@ -54,7 +54,9 @@ Google group (`erwin-mayer-labs-beta@googlegroups.com`, signup at
 `https://play.google.com/apps/testing/com.github.boombuds`. Version 1.0.0 (code 5) and the listing, app
 content (rating ESRB Everyone 10+ / PEGI 7, audience 13+) and Android TV opt-in were sent for review the same
 day. The existing Play service account has access, and the first AAB went up through the API
-(`4-publish-to-play.bat` as a draft: an app created with its package name accepts it).
+(`4-publish-to-play.bat` as a draft: an app created with its package name accepts it). Version 1.0.1 (code 6,
+hold-to-join, two players per gamepad, the reworked menu navigation) went to Alpha as a completed release on
+16 October 2026.
 
 The signing keys are in `publishing/secrets/` (ignored by git): **keep a backup of that folder** (the keys,
 their passwords, the version-code counter). The listing texts are in
