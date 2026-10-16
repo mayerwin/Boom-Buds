@@ -55,8 +55,10 @@ E S D F play two bombers, Esc pauses.
 `emulator-1997.cjs` plays 1997 mode with the remote: OK goes through the original menus to a round, "Back to
 today" stays hidden during it, Back opens the original's pause box and its arrows and OK choose in it.
 
-`emulator-screenshots.cjs` makes the store screenshots on the 4K emulator. `emulator-release-smoke.cjs` plays
-the signed release APK (no DevTools there) with the virtual remote and takes screenshots to look at.
+`emulator-screenshots.cjs` makes the store screenshots on the 4K emulator (the main screen, a lobby where a second
+player took the left half of the gamepad by holding LB, two rounds); look at them, then send them with
+`publishing/7-update-play-listing.bat -Screenshots`. `emulator-release-smoke.cjs` plays the signed release APK (no
+DevTools there) with the virtual remote and takes screenshots to look at.
 
 The emulators render with SwiftShader at a few frames per second: they prove input paths, sound routing and
 pixels, not smoothness or real audio latency (HDMI, soundbars and a TV's own processing are outside the app).

@@ -124,8 +124,8 @@ level staying the current settings afterwards), and the others listed in `docs/r
   In the original menus, *Start Network Game* shows the room code and *Join Network Game* asks for it
   instead of listing servers. The protocol and modem settings rows are kept in the original Options screen
   but have no effect.
-* **Lobby (modern menus).** Every machine brings up to four players of its own and picks their control
-  sets; the host picks the arena and rules and adds computer players; the host's *Start* starts the match on
+* **Lobby (modern menus).** Every machine brings players of its own (as many as the ten slots leave room for)
+  and picks their control sets; the host picks the arena and rules and adds computer players; the host's *Start* starts the match on
   every machine, and after the match everybody is back in the lobby (new machines may join between matches).
 * **Netcode.** Every machine runs the same deterministic simulation from everybody's inputs (rollback
   netcode with one frame of input delay), so all machines show exactly the same game.

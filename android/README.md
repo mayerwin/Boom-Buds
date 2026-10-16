@@ -69,7 +69,10 @@ Production access for a personal account needs 12 testers opted in for 14 days i
 
 For each release: raise `versionName` in `version.properties`, write
 `app/src/main/play/release-notes/en-US/default.txt`, run script 4. Version codes are reserved automatically
-(`publishing/secrets/release-state.json`).
+(`publishing/secrets/release-state.json`). When what the app does changes, the listing changes with it:
+edit [`publishing/store-listing.md`](publishing/store-listing.md), make new screenshots on the 4K emulator
+(`tests/emulator-screenshots.cjs`, then look at them) and run script 7 (`-Screenshots` to send them too).
+Everything goes through the Play API; nothing needs Play Console except reading the review status.
 
 ## Scripts
 
@@ -82,6 +85,7 @@ For each release: raise `versionName` in `version.properties`, write
 | `4-publish-to-play.bat` | build and release to the configured tracks (Alpha) |
 | `5-publish-to-play-production.bat` | build and release to Alpha and production |
 | `LAUNCH.bat` / `6-install-on-tv.bat` | build, install and start on a TV with network debugging (pairs once, then remembers it) |
+| `7-update-play-listing.bat` | the listing's descriptions from `store-listing.md` (`-Screenshots`: and the TV screenshots); `-Tracks` shows the releases on each track, `-DryRun` changes nothing |
 
 Requirements: Node.js 22+ (the scripts run `npm ci` when `node_modules` is missing), JDK 17+ (Android
 Studio's is found automatically) and the Android SDK (platform 36). Paths can be set in

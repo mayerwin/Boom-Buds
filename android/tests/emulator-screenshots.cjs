@@ -1,5 +1,6 @@
-// Store screenshots from the debug APK on the 4K Google TV emulator: the main screen, a Local Game lobby and a
-// round with six bombers, captured at 3840 x 2160 and scaled to 1920 x 1080 (PowerShell's System.Drawing).
+// Store screenshots from the debug APK on the 4K Google TV emulator: the main screen, a Local Game lobby (two
+// players sharing a gamepad, the second one joined by holding LB, and computer players) and a round with six
+// bombers, captured at 3840 x 2160 and scaled to 1920 x 1080 (PowerShell's System.Drawing).
 // Usage: BB_QA_SERIAL=emulator-5558 node android/tests/emulator-screenshots.cjs
 // Output: android/publishing/screenshots/*.png (look at them before uploading: capturing is not judging).
 'use strict';
@@ -26,7 +27,7 @@ async function main() {
   adb('install', '-r', apk);
   adb('shell', 'pm', 'clear', packageId);
   const input = inputDevices();
-  input.pad(2);
+  input.pad(2, 'Wireless Gamepad');
   await sleep(1500);
   adb('shell', 'am', 'start', '-W', '-n', `${packageId}/com.github.boombuds.MainActivity`);
   const app = await connect();
@@ -40,15 +41,27 @@ async function main() {
   const click = (re) => app.evaluate(`[...document.querySelectorAll('#menu-root button')].find(b=>${re}.test(b.textContent)).click()`);
   try {
     await app.waitFor((s) => s.menus && s.screen === 'home', 'Expected the main screen', 30000);
+    // (the loading screen goes once the menus are drawn: a just-booted emulator draws slowly)
+    for (let i = 0; i < 60 && (await app.evaluate("!!document.querySelector('.splash-box')")); i++) await sleep(500);
+    await sleep(3000);
     await app.evaluate('document.activeElement && document.activeElement.blur()');
     await shot('1-home');
     await click(/Local Game/);
     await app.waitFor((s) => s.heading === 'Local Game', 'Expected the lobby');
+    // a second player takes the left half of the gamepad, holding LB (once the lobby is set up: a slow emulator
+    // draws the screen well before it listens)
+    await sleep(2000);
+    await input.key(2, 'BUTTON_L1', 4000);
+    await sleep(500);
+    const players = await app.evaluate("document.querySelectorAll('#menu-root .players')[0].querySelectorAll('.pcard[data-group]').length");
+    if (players !== 2) throw new Error('LB held: expected two players sharing the gamepad, got ' + players);
     for (let i = 0; i < 4; i++) {
       await click(/Add computer player/);
       await sleep(250);
     }
-    await app.evaluate(`document.querySelector('#menu-root .pcard button')?.focus()`);
+    // the first player's card has the focus (a card is one stop of the navigation)
+    await app.evaluate(`(document.getElementById('menu-root').classList.add('kbd'), document.querySelector('#menu-root .pcard[data-group]')?.focus())`);
+    await sleep(2500); // (the "joined" note goes)
     await shot('2-lobby');
     await click(/^Start ▶$/);
     await app.waitFor((s) => s.round, 'Expected a round', 20000);

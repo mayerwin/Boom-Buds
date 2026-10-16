@@ -50,8 +50,9 @@ function inputDevices() {
     keyboard(id) {
       add(id, 'BB QA Keyboard', ['KEY_ESC', 'KEY_ENTER', 'KEY_Q', 'KEY_E', 'KEY_A', 'KEY_S', 'KEY_D', 'KEY_F', 'KEY_COMMA', 'KEY_DOT', 'DPAD_UP', 'DPAD_DOWN', 'DPAD_LEFT', 'DPAD_RIGHT']);
     },
-    pad(id) {
-      add(id, `BB QA Pad ${id}`, ['BUTTON_A', 'BUTTON_B', 'BUTTON_X', 'BUTTON_Y', 'BUTTON_L1', 'BUTTON_R1', 'BUTTON_START', 'DPAD_UP', 'DPAD_DOWN', 'DPAD_LEFT', 'DPAD_RIGHT']);
+    /** a gamepad (its name: what the game shows, e.g. in the store screenshots) */
+    pad(id, name = `BB QA Pad ${id}`) {
+      add(id, name, ['BUTTON_A', 'BUTTON_B', 'BUTTON_X', 'BUTTON_Y', 'BUTTON_L1', 'BUTTON_R1', 'BUTTON_START', 'DPAD_UP', 'DPAD_DOWN', 'DPAD_LEFT', 'DPAD_RIGHT']);
     },
     /** press and let go */
     async key(id, code, holdMs = 40) {
