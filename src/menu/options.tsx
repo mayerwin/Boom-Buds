@@ -7,6 +7,7 @@ import { useMenu } from './ctx.ts';
 import { Modal, Stepper, Toggle } from './ui.tsx';
 import { enter1997 } from '../app/modes.ts';
 import { resetSettings } from '../app/settings.ts';
+import { showDiag } from '../app/diag.ts';
 import { REPO_URL } from '../ui/helpViewer.ts';
 import { isTvApp } from '../app/controls.ts';
 import { GitHubMark } from './home.tsx';
@@ -43,6 +44,12 @@ export function Options(): JSX.Element {
           <Toggle label="Music during rounds" value={!st.disable_game_music} onChange={(v) => change(() => (st.disable_game_music = v ? 0 : 1))} />
           <h2>Display</h2>
           <Toggle label="Sharp pixels only (whole-number scaling)" hint="smaller picture, no blending between pixels" value={!!st.integerScale} onChange={(v) => change(() => { st.integerScale = v ? 1 : 0; app.layout(); })} />
+          <Toggle
+            label="Frame rate and input delay"
+            hint="how long a press takes to reach a drawn frame here: compare one screen with another"
+            value={!!st.diagnostics}
+            onChange={(v) => change(() => { st.diagnostics = v ? 1 : 0; showDiag(v); })}
+          />
           <div class="setting">
             <label>Full screen</label>
             <button

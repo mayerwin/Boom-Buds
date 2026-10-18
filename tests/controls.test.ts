@@ -164,12 +164,24 @@ describe('gamepad readings', () => {
     expect(padBits(gp(p))).toBe(IN_RIGHT | IN_UP | IN_ACT1);
   });
 
-  it('play half a gamepad: left stick or d-pad, LB, LT on the left; right stick, A / RB, B / RT on the right', () => {
+  it('play half a gamepad: left stick or d-pad, LB, LT on the left; right stick, A / RB, X / RT on the right', () => {
     const p = fake(XBOX, 0);
     p.axes = [-0.8, 0, 0, 0.7];
     press(p, 4, 7, 13);
     expect(padBits(gp(p), 'left')).toBe(IN_LEFT | IN_DOWN | IN_ACT1);
     expect(padBits(gp(p), 'right')).toBe(IN_DOWN | IN_ACT2);
+    // the right half plays with the two buttons a thumb reaches beside its stick: A bombs, X is the special
+    const r = fake(XBOX, 0);
+    press(r, 0);
+    expect(padBits(gp(r), 'right')).toBe(IN_ACT1);
+    const s = fake(XBOX, 0);
+    press(s, 2);
+    expect(padBits(gp(s), 'right')).toBe(IN_ACT2);
+    // B and Y are the whole gamepad's special, and nothing on its right half (B is "back" in the menus)
+    const t = fake(XBOX, 0);
+    press(t, 1, 3);
+    expect(padBits(gp(t))).toBe(IN_ACT2);
+    expect(padBits(gp(t), 'right')).toBe(0);
     // a gamepad of unknown layout has no right stick to play with
     const q = { ...fake('Old joystick', 1, ''), axes: [0, 0, -1, -1] };
     expect(padBits(gp(q), 'right')).toBe(0);

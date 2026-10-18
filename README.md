@@ -92,16 +92,18 @@ which is why there are two steps; to invite someone, send the group's page: it l
 |---|---|---|---|---|
 | Gamepad | stick or d-pad | A | B | Start |
 | Gamepad shared by two: left side | left stick or d-pad | LB | LT | Select |
-| Gamepad shared by two: right side | right stick | A or RB | B or RT | Start |
+| Gamepad shared by two: right side | right stick | A or RB | X or RT | Start |
 | TV remote | arrows | OK | hold OK (when it has a use) | Back |
 | Keyboard | arrows, or E S D F | <kbd>.</kbd> or <kbd>A</kbd> | <kbd>,</kbd> or <kbd>Q</kbd> | Esc |
 
-Players join in **Local Game** by holding a button of their gamepad (or OK on the remote) for a moment; a short
-press just works the menus. A second player on the same gamepad holds a button on their side of it (LB for the
-left side, A for the right side). The line-up is remembered: a player whose gamepad is off disappears from it
-and comes back with the gamepad. In the menus, the arrows always go to the nearest control; OK (A) goes into a
-player's card or starts changing a setting, then ← → change it and OK is done; Back (B) comes out. Back on the
-main screen leaves the app. Developers can build and install it themselves: [android/README.md](android/README.md).
+Players join in **Local Game** by holding any button of their gamepad (or OK on the remote) for a moment; a
+short press just works the menus. A gamepad always joins whole; holding a button on it again shares it between
+two players — whoever had it keeps the left half, the newcomer takes the right half. The line-up is remembered:
+a player whose gamepad is off disappears from it and comes back with the gamepad. Not sure which button LB or LT
+is? The controls button on a player's card (and the **Controls** menu) draws the controller with the buttons that
+player uses marked. In the menus, the arrows always go to the nearest control; OK (A) goes into a player's card
+or starts changing a setting, then ← → change it and OK is done; Back (B) comes out. Back on the main screen
+leaves the app. Developers can build and install it themselves: [android/README.md](android/README.md).
 
 ## Run it on your computer
 
@@ -149,7 +151,7 @@ player to reach the number of wins set for the match takes it.
 | Numpad | <kbd>8</kbd> <kbd>4</kbd> <kbd>5</kbd> <kbd>6</kbd> | <kbd>0</kbd> | <kbd>Enter</kbd> |
 | Gamepad | stick or d-pad | A | B (Start pauses) |
 | Gamepad, left half (two players on one) | left stick or d-pad | LB | LT |
-| Gamepad, right half | right stick | A or RB | B or RT |
+| Gamepad, right half | right stick | A or RB | X or RT |
 | Mouse | point where to walk | left button | right button |
 | Touch screen | on-screen stick | A | B |
 
@@ -160,10 +162,14 @@ Gamepads have no such limit.
 trigger bombs. **Esc** pauses a round, in a network game for everybody: anyone can resume, and a 3, 2, 1
 countdown starts everybody at once.
 
-- To join a local game, press your bomb key, or hold a button of your gamepad (OK on a TV remote) for a moment:
-  a short press only works the menus. To share a gamepad, the second player holds a button on their side of it
-  (LB on the left, A on the right); when one of them leaves, the other gets the whole gamepad back. The line-up
-  is remembered: players whose device is missing are hidden and come back with it.
+- To join a local game, press your bomb key, or hold any button of your gamepad (OK on a TV remote) for a
+  moment: a short press only works the menus. A gamepad joins whole; hold a button on it again and two players
+  share it, the first on its left half and the newcomer on its right half (when one of them leaves, the other
+  gets the whole gamepad back). The line-up is remembered: players whose device is missing are hidden and come
+  back with it.
+- Not sure what LB and LT are? The controls button on a player's card opens the list of controls with a drawing
+  of the controller, its move, bomb and special buttons marked; **Controls** draws every gamepad, remote, mouse
+  and touch layout the same way.
 - In the menus, the arrow keys (or a d-pad or stick) always go to the nearest control. Enter (gamepad A) goes into
   a player's card, to its colour, team, controls and ✕, or starts changing a setting: ← → then change it and
   Enter is done. Esc (gamepad B) comes back out.
@@ -185,6 +191,9 @@ countdown starts everybody at once.
 - Make your own arenas with the **Scheme editor** (Options → Extras); **My schemes** plays, exports and imports
   them.
 - **How to Play** in the game lists every power-up.
+- **Options → Display → Frame rate and input delay** shows how many frames a second this machine draws and how
+  long a press takes to reach a drawn frame — handy to compare a TV with a computer (`?diag` does the same in a
+  browser). What a screen adds after that is its own: a television's game mode is what cuts it.
 
 ### Network games
 
@@ -240,7 +249,7 @@ npm run build       # production build in dist/
 | `node tools/ai-bench.ts --level 5 --repeat 3` | CPU cost of the computer players per simulation tick |
 | `E2E_URL=http://localhost:8080/ npm run e2e` | The browser tests against a production build (`npm start`) |
 
-URL parameters: `?fps` shows the frame rate; `?bench=N&level=L&ai=S` runs endless demo rounds with N computer
+URL parameters: `?diag` shows the frame rate and the delay from a press to a drawn frame, `?fps` the frame rate alone; `?bench=N&level=L&ai=S` runs endless demo rounds with N computer
 players; `?join=CODE` joins a network game; `?relay=local` or `?relay=public` chooses where network games meet;
 `?netsim=50,10,1` delays this browser's network messages (50 ms, plus up to 10 ms at random) and loses 1 % of its
 input packets; `?1997` starts in 1997 mode.

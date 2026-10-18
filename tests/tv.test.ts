@@ -13,10 +13,15 @@ interface PadsApi {
   input(e: object): number;
   snapshot(): (Snap | null)[];
   on(fn: (type: string, pad: { index: number; id: string }) => void): void;
+  /** fetches the events still waiting in the app (install() sets it) */
+  pull: (() => void) | null;
+  /** the last press, for the diagnostics overlay */
+  edge: { seq: number; time: number; recv: number };
 }
 interface TvApi {
   Pads: new (now: () => number, backButton?: () => number) => PadsApi;
   backButtonFor(doc: object, game: object | null): number;
+  install(win: object): PadsApi;
 }
 
 // a plain script (UMD), loaded as CommonJS
@@ -160,6 +165,63 @@ describe('TV controllers as gamepads', () => {
   });
 });
 
+describe('the events waiting in the app', () => {
+  /** enough of a window for tv.js to install itself in (its frame callbacks are never run) */
+  function fakeWindow(host: Record<string, unknown>) {
+    const doc = {
+      readyState: 'complete',
+      activeElement: null,
+      addEventListener() {},
+      getElementById: () => null,
+      querySelector: () => null,
+    };
+    return {
+      document: doc,
+      navigator: {} as { getGamepads?: () => (Snap | null)[] },
+      performance: { now: () => 1000 },
+      requestAnimationFrame: () => 1,
+      Event: class {
+        type: string;
+        constructor(type: string) {
+          this.type = type;
+        }
+      },
+      dispatchEvent() {},
+      AndroidHost: { ready() {}, ...host },
+    };
+  }
+
+  it('are fetched when the game reads the gamepads, and acted on once each', () => {
+    const waiting = [{ type: 'key', device: pad, code: 'BUTTON_A', action: 'down', repeat: 0, time: 4242 }];
+    let drained = 0;
+    const win = fakeWindow({
+      drainInput() {
+        drained++;
+        return waiting.length ? JSON.stringify(waiting.splice(0)) : '';
+      },
+    });
+    const pads = tv.install(win);
+    // the press is in the very first reading: nothing waits for the next display frame
+    expect(pressed(win.navigator.getGamepads!()[0])).toEqual([0]);
+    expect(drained).toBe(1);
+    // and it is noted for the diagnostics overlay, with the time the app saw it
+    expect(pads.edge).toMatchObject({ seq: 1, time: 4242 });
+    pads.frame++;
+    expect(pressed(win.navigator.getGamepads!()[0])).toEqual([0]); // still held, not pressed again
+    expect(pads.edge.seq).toBe(1);
+  });
+
+  it('are taken as they come when the app pushes them instead', () => {
+    const win = fakeWindow({ drainInput: () => '' });
+    const pads = tv.install(win);
+    (win as unknown as { BoomBudsAndroid: { onInput(e: object): void } }).BoomBudsAndroid.onInput({
+      type: 'key', device: pad, code: 'BUTTON_X', action: 'down', repeat: 0, time: 10,
+    });
+    expect(pressed(pads.snapshot()[0])).toEqual([2]);
+    expect(pads.edge.seq).toBe(1);
+  });
+});
+
 describe('the TV remote in a round', () => {
   /** a fresh remote whose OK was up when the round started */
   const remote = () => {
@@ -197,6 +259,21 @@ describe('the TV remote in a round', () => {
     // and a press that can be the special stays one
     expect(r.bits(IN_ACT1, true, 2000)).toBe(0);
     expect(r.bits(IN_ACT1, false, 2000 + REMOTE_HOLD_MS)).toBe(IN_ACT2);
+  });
+
+  it('takes a press the game saw only once for a short one, however far apart the frames are', () => {
+    const b = new RemoteButton();
+    expect(b.bits(0, true, 0)).toBe(0);
+    // one frame sees OK down, the next one (a third of a second later: a machine drawing three frames a second)
+    // sees it let go — the game never saw it held, so it was a tap: the bomb
+    expect(b.bits(IN_ACT1, true, 100)).toBe(0);
+    expect(b.bits(0, true, 430)).toBe(IN_ACT1);
+    // held over two frames and longer than the hold: the special
+    const c = new RemoteButton();
+    expect(c.bits(0, true, 0)).toBe(0);
+    expect(c.bits(IN_ACT1, true, 100)).toBe(0);
+    expect(c.bits(IN_ACT1, true, 430)).toBe(IN_ACT2);
+    expect(c.bits(0, true, 500)).toBe(0);
   });
 
   it('ignores a press that was already down when the round started or the pause menu closed', () => {

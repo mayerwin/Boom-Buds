@@ -119,9 +119,6 @@ export function forgetPads(): void {
 /** Half of a gamepad: two players on one gamepad, one on each side. */
 export type PadHalf = 'left' | 'right';
 
-/** Buttons of the left side of a gamepad (standard mapping): LB, LT, Select / View, the left stick's click. */
-export const LEFT_SIDE_BUTTONS = [4, 6, 8, 10];
-
 const STICK = 0.5;
 
 function stickBits(x: number | undefined, y: number | undefined): number {
@@ -141,14 +138,15 @@ function dpadBits(gp: Gamepad): number {
 /**
  * IN_* bits of a gamepad (standard mapping). The whole pad: the left stick or the d-pad move, A (or X) is the
  * bomb button, B (or Y) the special. Half of it, for two players on one gamepad: on the left side, the left stick
- * or the d-pad, LB bomb, LT special; on the right side, the right stick, A / X / RB bomb, B / Y / RT special.
+ * or the d-pad, LB bomb, LT special; on the right side, the right stick, A (or RB) bomb, X (or RT) special — the
+ * two buttons a thumb reaches without letting go of that stick.
  */
 export function padBits(gp: Gamepad, half?: PadHalf): number {
   const b = (n: number) => !!gp.buttons[n]?.pressed;
   if (half === 'right') {
     let bits = gp.mapping === 'standard' ? stickBits(gp.axes[2], gp.axes[3]) : 0;
-    if (b(0) || b(2) || b(5)) bits |= IN_ACT1;
-    if (b(1) || b(3) || b(7)) bits |= IN_ACT2;
+    if (b(0) || b(5)) bits |= IN_ACT1;
+    if (b(2) || b(7)) bits |= IN_ACT2;
     return bits;
   }
   let bits = stickBits(gp.axes[0], gp.axes[1]) | dpadBits(gp);

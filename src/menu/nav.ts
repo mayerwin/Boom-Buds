@@ -1,5 +1,8 @@
 // Keyboard and gamepad navigation for the menus. The arrow keys (or the d-pad / a stick) always move the focus to
-// the nearest control in that direction. Enter (gamepad A) uses the focused control: a button is pressed; a card
+// the nearest control in that direction; a panel of text or pictures with nothing to press in it (data-scroller)
+// is a stop of its own that Up / Down scroll until its end, and where there is no control that way but the screen
+// goes on, the view scrolls instead — on a television the menus are laid out in little room, and everything in
+// them has to be reachable with a d-pad. Enter (gamepad A) uses the focused control: a button is pressed; a card
 // (a player of a line-up: data-group) is entered, its own controls are then reached with the arrows, and Escape
 // (B) or an arrow past its edge leaves it; a setting with values to go through (data-edit: steppers, stars, the
 // arena) starts being changed: Left / Right change it, and Enter, Escape, Up or Down are done with it. A text
@@ -10,12 +13,16 @@
 import { connectedPads, padMenuBits, IN_DOWN, IN_LEFT, IN_RIGHT, IN_UP } from '../engine/input.ts';
 
 const FOCUSABLE = 'button:not([disabled]), [tabindex="0"], input:not([disabled]), summary, a[href]';
+/** a panel that scrolls instead of being left: Up / Down go through it first (its end passes them on) */
+const SCROLLER = '[data-scroller]';
 const GROUP = '[data-group]';
 const EDIT = '[data-edit]';
 const DIRS: Record<string, [number, number]> = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] };
 const PAD_DIRS: [number, string][] = [[IN_UP, 'ArrowUp'], [IN_DOWN, 'ArrowDown'], [IN_LEFT, 'ArrowLeft'], [IN_RIGHT, 'ArrowRight']];
 /** a gamepad button held this long adds a player (ms) */
 export const JOIN_HOLD_MS = 800;
+/** sharing a gamepad that already plays takes longer (its player may just be holding a button) */
+export const SPLIT_HOLD_MS = 1200;
 /** a hold starts showing its progress after this long (ms): quick presses show nothing */
 const HOLD_SHOW_MS = 150;
 
@@ -26,7 +33,11 @@ export interface PadJoin {
   label: string;
   /** the hold it takes (ms) */
   hold: number;
+  /** what to say while the button is held */
+  hint: string;
   swap?: { from: string; to: string };
+  /** nothing joins: this gamepad already plays, and the hold says this instead */
+  claim?: string;
 }
 
 export interface JoinHook {
@@ -90,6 +101,15 @@ function nearest(items: HTMLElement[], a: DOMRect, dx: number, dy: number, skip:
     }
   }
   return best;
+}
+
+/** The box a control scrolls in: the nearest ancestor that has somewhere to scroll. */
+function scrollerOf(el: HTMLElement | null): HTMLElement | null {
+  for (let p: HTMLElement | null = el; p; p = p.parentElement) {
+    const s = getComputedStyle(p);
+    if (p.scrollHeight - p.clientHeight > 2 && (s.overflowY === 'auto' || s.overflowY === 'scroll')) return p;
+  }
+  return null;
 }
 
 /** Is a gamepad there? (Browsers list one only after its first button press.) */
@@ -247,9 +267,32 @@ export class Nav {
     // (focus on something that is no stop of its own, such as a stepper's arrow clicked with the mouse: its stop)
     const from = items.includes(cur) ? cur : items.find((e) => e.contains(cur));
     if (!from) return this.refocus(dx, dy);
+    // a panel of text: Up / Down scroll through it, and move on once it is at its end
+    if (dy && from.matches(SCROLLER) && from.scrollHeight - from.clientHeight > 2) {
+      const room = dy > 0 ? from.scrollHeight - from.clientHeight - from.scrollTop : from.scrollTop;
+      if (room > 2) {
+        from.scrollBy({ top: dy * Math.min(room, from.clientHeight * 0.75) });
+        return;
+      }
+    }
     let best = nearest(items, from.getBoundingClientRect(), dx, dy, from);
     if (!best && group) best = nearest(focusables(this.root, null), group.getBoundingClientRect(), dx, dy, group);
     if (best) this.focusEl(best);
+    else if (dy) this.scrollOn(from, dy);
+  }
+
+  /** No control that way: show more of what the screen has there, as far as the focused control stays in view. */
+  private scrollOn(from: HTMLElement | null, dy: number): void {
+    const box = scrollerOf(from ?? this.root);
+    if (!box) return;
+    let room = dy > 0 ? box.scrollHeight - box.clientHeight - box.scrollTop : box.scrollTop;
+    if (from) {
+      // (a focus ring nobody can see is worse than not scrolling)
+      const a = from.getBoundingClientRect(), b = box.getBoundingClientRect();
+      room = Math.min(room, Math.max(0, dy > 0 ? a.top - b.top : b.bottom - a.bottom));
+    }
+    if (room < 2) return;
+    box.scrollBy({ top: dy * Math.min(room, box.clientHeight * 0.6) });
   }
 
   private startEdit(el: HTMLElement): void {
@@ -418,7 +461,7 @@ export class Nav {
       this.holdText = el.querySelector('span');
       this.holdBar = el.querySelector('b');
     }
-    const text = h.join.swap ? `Keep holding: a second player on this gamepad · ${h.join.label}` : `Keep holding to join · ${h.join.label}`;
+    const text = h.join.hint;
     if (this.holdText!.textContent !== text) this.holdText!.textContent = text;
     const f = Math.min(1, (now - h.since - HOLD_SHOW_MS) / Math.max(1, h.join.hold - HOLD_SHOW_MS));
     this.holdBar!.style.transform = `scaleX(${f.toFixed(3)})`;

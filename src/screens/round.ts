@@ -21,6 +21,7 @@ import { helpScreen } from '../ui/helpViewer.ts';
 import { createAi, type AiOptions, type AiPlayer } from '../game/ai/index.ts';
 import { CLASSIC_SET_IDS, classicLayouts, findSet, keyBits, mouseBits, padOfSet, RemoteButton, TV_REMOTE, type ControlSet } from '../app/controls.ts';
 import { openPauseMenu, type PauseMenu } from '../menu/pause.ts';
+import { showCurtain } from '../menu/curtain.ts';
 import type { Scheme } from '../engine/assets.ts';
 import { RollbackSession } from '../net/rollback.ts';
 import { cloneState } from '../game/sim/clone.ts';
@@ -555,6 +556,8 @@ export class MatchRunner {
       session.goldPlayer = -1;
       session.matchEnd = 2;
       if (this.net?.role === 'host') this.net.broadcast({ t: 'abort' });
+      // the modern menus take over: a curtain instead of a still picture while they come up
+      if (this.g.menus) showCurtain(session.net ? 'Back to the lobby…' : 'Back to the menu…');
     } else if (this.rb) {
       // the host ends the round in a draw: the pause ends at once, so that the command reaches the game
       this.cmd |= CMD_FORCED_DRAW;

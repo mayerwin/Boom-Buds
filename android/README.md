@@ -25,17 +25,26 @@ Network games work as on the web, with the website's players too.
 | --- | --- | --- | --- | --- | --- |
 | Gamepad (Xbox, PlayStation, Switch Pro and other Bluetooth pads) | stick or d-pad | A | B | Start | d-pad or a stick, A selects, B goes back |
 | Gamepad shared by two, left side | left stick or d-pad | LB | LT | Select | |
-| Gamepad shared by two, right side | right stick | A or RB | B or RT | Start | |
+| Gamepad shared by two, right side | right stick | A or RB | X or RT | Start | |
 | TV remote | arrows | OK | hold OK | Back | arrows, OK selects, Back goes back |
 | Keyboard / mouse | as on the website | | | Esc | as on the website |
 
-In Local Game, player 1 is a gamepad when one is connected, otherwise the remote. The others join by holding a
-button of their gamepad, or the remote's OK, for 0.8 s (a short press is a menu press); a second player on a
-gamepad holds a button on their side of it (LB: left, A: right), and **Add player** lists every set. The line-up
-is remembered by gamepad name: a player whose gamepad is off is hidden until it is back. In the menus the arrows
-always move to the nearest control; OK goes into a player's card (Back comes out) or starts changing a setting
-(← → change it, OK is done). Back on the main screen leaves the app. Pair Bluetooth controllers in the TV's
-settings first.
+In Local Game, player 1 is a gamepad when one is connected, otherwise the remote. The others join by holding
+any button of their gamepad, or the remote's OK, for 0.8 s (a short press is a menu press): a gamepad joins
+whole. Holding a button on a gamepad that already plays says so, and holding one again (1.2 s) shares it between
+two players — its player keeps the left half, the newcomer takes the right half — so that nobody shares one by
+accident. **Add player** lists every set, with a drawing of the controller and the buttons that player uses, as
+the **Controls** menu does. The line-up is remembered by gamepad name: a player whose gamepad is off is hidden
+until it is back. In the menus the arrows always move to the nearest control (and scroll a screen that is taller
+than the television, such as Controls); OK goes into a player's card (Back comes out) or starts changing a
+setting (← → change it, OK is done). Back on the main screen leaves the app. Pair Bluetooth controllers in the
+TV's settings first.
+
+Leaving a match goes straight back to the menus, under a short curtain. If the game ever feels slow to answer,
+**Options → Display → Frame rate and input delay** shows what this machine takes: the frames a second it draws,
+how long a press takes to reach a drawn frame, and how long the app takes to hand a press to the page. A
+television adds its own delay after that — its game mode (or "low latency mode") is what cuts it, and the app
+asks for it.
 
 The remote has one action button. OK is the bomb button: a bomb at once, and held, it carries a grabbed bomb.
 When the special button has a use for its bomber (a boxing glove, trigger bombs, or one of its kicked bombs
@@ -56,7 +65,9 @@ content (rating ESRB Everyone 10+ / PEGI 7, audience 13+) and Android TV opt-in 
 day. The existing Play service account has access, and the first AAB went up through the API
 (`4-publish-to-play.bat` as a draft: an app created with its package name accepts it). Version 1.0.1 (code 6,
 hold-to-join, two players per gamepad, the reworked menu navigation) went to Alpha as a completed release on
-16 October 2026.
+16 October 2026. Version 1.0.2 (code 7, the shorter input path, the drawings of the
+controllers, sharing a gamepad on purpose, the Controls screen that scrolls on a TV and the instant way out of
+a match) followed on 18 October 2026.
 
 The signing keys are in `publishing/secrets/` (ignored by git): **keep a backup of that folder** (the keys,
 their passwords, the version-code counter). The listing texts are in

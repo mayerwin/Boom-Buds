@@ -1,10 +1,11 @@
 // The debug APK on a Google TV emulator, played with a virtual TV remote and a virtual gamepad (real Linux input
 // devices, so the events go through Android's input stack, MainActivity and tv.js):
 //   the remote and the pad show up as gamepads; the remote opens Local Game, where the pad is player 1, a short
-//   OK of the remote is a menu press and a held one adds the remote as player 2, LB held on the pad adds a player
-//   on its left half (whose removal gives the whole pad back); a round starts; both move their bombers, the
-//   remote drops a bomb; the effects play through native SoundPool;
-//   Back pauses (the round stops), Back resumes; quitting returns to the lobby; Back leaves the menus and,
+//   OK of the remote is a menu press and a held one adds the remote as player 2; a button held on the pad says it
+//   already plays and a second hold shares it (its left half for player 1, its right half for a third player,
+//   whose removal gives the whole pad back); a round starts; both move their bombers, the remote drops a bomb;
+//   the effects play through native SoundPool;
+//   Back pauses (the round stops), Back resumes; quitting returns to the lobby at once; Back leaves the menus and,
 //   on the main screen, the app; the game canvas is drawn at the WebView's full physical resolution.
 // Usage: BB_QA_SERIAL=emulator-5556 node android/tests/emulator-smoke.cjs [apk]
 // Evidence (screenshots, emulator-smoke.json) goes to android/app/build/qa/<serial>/.
@@ -51,20 +52,51 @@ async function main() {
     await sleep(2000); // (the splash fades out)
     await shot('1-home');
 
-    // the remote: arrows move the focus, OK opens Local Game
-    const press = async (id, key) => {
-      const was = (await app.snapshot()).focused;
-      await input.key(id, key);
-      await app.waitFor((t) => t.focused !== was, `${key} moves the focus`, 4000);
+    /**
+     * A press, until the game has acted on it. This emulator draws a few frames a second and now and then falls
+     * seconds behind, so one press can land while the page is still catching up with the one before.
+     */
+    const pressUntil = async (id, key, check, message, timeout = 12000) => {
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        await input.key(id, key);
+        try {
+          return await app.waitFor(check, '', timeout);
+        } catch (_) {
+          /* again */
+        }
+      }
+      throw new Error(`${message}; screen=${JSON.stringify(await app.snapshot())}`);
     };
-    await press(REMOTE, 'DPAD_DOWN');
-    for (let i = 0; i < 6 && !(await app.snapshot()).focused.includes('Local Game'); i++) await press(REMOTE, 'DPAD_UP');
-    assert.match((await app.snapshot()).focused, /Local Game/);
-    await input.key(REMOTE, 'DPAD_CENTER');
-    await app.waitFor((s) => s.heading === 'Local Game', 'Expected the Local Game lobby');
-    // player 1 is the gamepad; a short OK of the remote is a menu press, holding OK joins the remote; holding the
-    // gamepad's LB brings a third player on its left half, whose ✕ gives player 1 the whole gamepad back
+    // the remote: arrows move the focus, OK opens Local Game
+    const focusButton = (scope, re) => app.evaluate(`(()=>{const b=[...document.querySelectorAll('${scope} button')].find(b=>${re}.test(b.textContent));b.focus();return !!b;})()`);
+    // the arrows take the focus around the screen (which control it lands on is the business of the menu tests in
+    // Chrome: a held key repeats on an emulator that draws a few frames a second, and an edge stops it)
+    const visited = new Set();
+    for (const key of ['DPAD_DOWN', 'DPAD_RIGHT', 'DPAD_LEFT', 'DPAD_DOWN']) {
+      await input.key(REMOTE, key);
+      await sleep(400);
+      visited.add((await app.snapshot()).focused);
+    }
+    assert.ok(visited.size > 1, 'the arrows move the focus: ' + JSON.stringify([...visited]));
+    await focusButton('#menu-root', /Local Game/);
+    await pressUntil(REMOTE, 'DPAD_CENTER', (s) => s.heading === 'Local Game', 'Expected the Local Game lobby');
+    // player 1 is the gamepad; a short OK of the remote is a menu press, holding OK joins the remote; a button
+    // held on the gamepad says it already plays, and held again shares it (left half for player 1, right half for
+    // a third player) until that player's ✕ gives player 1 the whole gamepad back
     const lineup = () => app.evaluate(`[...document.querySelectorAll('#menu-root .pcard')].map(c=>c.innerText.replace(/\s+/g,' ').slice(0,60))`);
+    // every note the menus show, kept as it appears (each one goes again after a couple of seconds, and this
+    // emulator can take longer than that to answer)
+    await app.evaluate(`(()=>{window.__notes=[];new MutationObserver(()=>{const t=document.querySelector('.toast');
+      if(t&&window.__notes[window.__notes.length-1]!==t.innerText)window.__notes.push(t.innerText);})
+      .observe(document.body,{subtree:true,childList:true,characterData:true});return true;})()`);
+    const notes = () => app.evaluate('window.__notes.slice()');
+    const waitNote = async (re, message) => {
+      for (let i = 0; i < 20; i++) {
+        if ((await notes()).some((n) => re.test(n))) return;
+        await sleep(300);
+      }
+      assert.fail(`${message}; notes so far: ${JSON.stringify(await notes())}`);
+    };
     const stored = () => app.evaluate(`JSON.parse(localStorage.getItem('boombuds.settings.v1')).localPlayers`);
     const PAD_ID = `pad:0:BB QA Pad ${PAD}`;
     const cards0 = await lineup();
@@ -78,19 +110,20 @@ async function main() {
     assert.equal((await lineup()).length, cards0.length + 1, 'holding OK joins the remote: ' + JSON.stringify(await lineup()));
     assert.deepEqual(await stored(), [PAD_ID, 'pad:0:TV remote']);
     await input.key(PAD, 'BUTTON_L1', 2600);
+    await waitNote(/already plays/, 'the first hold says that the gamepad already plays');
+    assert.deepEqual(await stored(), [PAD_ID, 'pad:0:TV remote'], 'and nobody joins');
+    await input.key(PAD, 'BUTTON_L1', 2600);
     await sleep(600);
-    assert.deepEqual(await stored(), [`padR:0:BB QA Pad ${PAD}`, 'pad:0:TV remote', `padL:0:BB QA Pad ${PAD}`], 'LB held: the left half for a third player');
+    assert.deepEqual(await stored(), [`padL:0:BB QA Pad ${PAD}`, 'pad:0:TV remote', `padR:0:BB QA Pad ${PAD}`], 'held again: the gamepad is shared, its right half for a third player');
     await app.evaluate(`[...document.querySelectorAll('#menu-root button')].find(b=>b.getAttribute('aria-label')==='remove Player 3').click()`);
     await sleep(600);
     assert.deepEqual(await stored(), [PAD_ID, 'pad:0:TV remote'], 'the whole gamepad back to player 1');
-    const focusButton = (scope, re) => app.evaluate(`(()=>{const b=[...document.querySelectorAll('${scope} button')].find(b=>${re}.test(b.textContent));b.focus();return !!b;})()`);
     await app.evaluate(`[...document.querySelectorAll('#menu-root button')].find(b=>/Add computer player/.test(b.textContent)).click()`);
     await sleep(300);
     await check('lobby', { cards: await lineup() });
     await shot('2-lobby');
     await focusButton('#menu-root', /^Start ▶$/);
-    await input.key(REMOTE, 'DPAD_CENTER');
-    await app.waitFor((s) => s.round, 'Expected a round', 20000);
+    await pressUntil(REMOTE, 'DPAD_CENTER', (s) => s.round, 'Expected a round', 20000);
     const slots = await app.evaluate(game(`g.session.slots.slice(0,4).map(s=>s.type+':'+(s.ctl||''))`));
     assert.deepEqual(slots.slice(0, 3), [`3:${PAD_ID}`, '3:pad:0:TV remote', '1:'], 'gamepad, remote, computer: ' + slots);
     // wait for the round's start (the bombers can move)
@@ -156,26 +189,35 @@ async function main() {
     await shot('3-round');
 
     // Back pauses, Back resumes
-    await input.key(REMOTE, 'BACK');
-    await app.waitFor((s) => s.paused, 'Back pauses');
+    await pressUntil(REMOTE, 'BACK', (s) => s.paused, 'Back pauses');
     const t1 = (await pos(0)).tick;
     await sleep(800);
     assert.equal((await pos(0)).tick, t1, 'the round stops while paused');
     await check('paused');
     await shot('4-paused');
-    await input.key(REMOTE, 'BACK');
-    await app.waitFor((s) => !s.paused, 'Back resumes');
+    await pressUntil(REMOTE, 'BACK', (s) => !s.paused, 'Back resumes');
     // (after the countdown)
     for (let i = 0; i < 40 && (await pos(0)).tick === t1; i++) await sleep(200);
     assert.ok((await pos(0)).tick > t1, 'the round goes on');
     // quit from the pause menu
-    await input.key(REMOTE, 'BACK');
-    await app.waitFor((s) => s.paused, 'Back pauses again');
+    await pressUntil(REMOTE, 'BACK', (s) => s.paused, 'Back pauses again');
     await sleep(500); // (the pause menu ignores gamepads for 300 ms: other players may be pressing a button)
-    await focusButton('#pause-root', /Quit the match/);
-    await input.key(REMOTE, 'DPAD_CENTER');
-    await app.waitFor((s) => s.menus && s.heading === 'Local Game', 'Quit returns to the lobby', 15000);
-    await check('quit');
+    // (a pause menu that just opened ignores the gamepads for a moment: another player may be pressing a button)
+    let backInMs = -1;
+    for (let attempt = 1; attempt <= 3 && backInMs < 0; attempt++) {
+      await app.evaluate(`(()=>{const b=[...document.querySelectorAll('#pause-root button')].find(b=>/Quit the match/.test(b.textContent));if(b)b.focus();return !!b;})()`);
+      const quitAt = Date.now();
+      await input.key(REMOTE, 'DPAD_CENTER');
+      try {
+        await app.waitFor((s) => s.menus && s.heading === 'Local Game', '', 8000);
+        backInMs = Date.now() - quitAt;
+      } catch (_) {
+        await sleep(500);
+      }
+    }
+    assert.ok(backInMs >= 0, 'Quit returns to the lobby');
+    // (no end-of-match wait any more: the menus come back under a curtain — src/menu/curtain.ts)
+    await check('quit', { backInMs });
 
     // the canvas is drawn at the WebView's physical resolution
     const display = JSON.parse(await app.evaluate('AndroidHost.getDisplayInfo()'));
@@ -190,8 +232,7 @@ async function main() {
     await check('display', { display, canvas });
 
     // Back: to the main screen, then out of the app
-    await input.key(REMOTE, 'BACK');
-    await app.waitFor((s) => s.screen === 'home', 'Back returns to the main screen');
+    await pressUntil(REMOTE, 'BACK', (s) => s.screen === 'home', 'Back returns to the main screen');
     // the privacy policy, in the app (Options), and Back closes its dialog
     await app.evaluate(`[...document.querySelectorAll('#menu-root button')].find(b=>b.textContent.trim()==='Options').click()`);
     await app.waitFor((s) => s.screen === 'options', 'Expected Options');

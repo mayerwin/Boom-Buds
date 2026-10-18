@@ -24,7 +24,7 @@ import { allSchemes, parseSchemeText, schemeFileText } from '../app/schemes.ts';
 import { specialLevels } from '../game/levels.ts';
 import { cleanLevels } from '../app/settings.ts';
 import { classicChoices, classicInput, idsClash, keyboardsHere, slotSetId } from '../app/controls.ts';
-import { originalMouse } from '../app/modes.ts';
+import { originalMouse, originalWaits } from '../app/modes.ts';
 import { lineupFromSlots, savedLineupSlots, schemeTeams, storeLineup } from '../menu/lineup.ts';
 
 /** power-up type -> "power <name>" sequence */
@@ -153,7 +153,7 @@ export async function matchPlay(g: Game): Promise<void> {
   }
   if (session.campaign) {
     await campaignPlay(g, params);
-    await ui.delay(1000, () => {});
+    if (originalWaits(g.settings)) await ui.delay(1000, () => {});
     return;
   }
   await playMatch(g, params);
@@ -196,8 +196,9 @@ export async function playMatch(g: Game, params: MatchParams): Promise<void> {
       if (session.matchEnd) break;
       await runner.startRound();
     }
-    // end-of-match pause: 10 x 100 ms with the screen unchanged
-    await ui.delay(1000, () => {});
+    // the original's end-of-match pause: 10 x 100 ms with the screen unchanged (modern: the menus come back
+    // at once, under a curtain — src/menu/curtain.ts)
+    if (originalWaits(g.settings)) await ui.delay(1000, () => {});
   } finally {
     runner.dispose();
     if (net) {

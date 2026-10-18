@@ -5,12 +5,14 @@ import type { JSX } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { useMenu, PLAYER_COLOURS } from './ctx.ts';
 import { Modal, Stars, SKILL_NAMES } from './ui.tsx';
-import { JOIN_HOLD_MS } from './nav.ts';
+import { ControllerArt, KeyCluster } from './controller.tsx';
+import { JOIN_HOLD_MS, SPLIT_HOLD_MS, type PadJoin } from './nav.ts';
 import {
   ACTION_LABELS,
   availableSets,
   canSplit,
   findSet,
+  halfOf,
   idsClash,
   isRemoteSet,
   isTvApp,
@@ -24,34 +26,8 @@ import {
   wholePad,
   type ControlSet,
 } from '../app/controls.ts';
-import { connectedPads, LEFT_SIDE_BUTTONS } from '../engine/input.ts';
+import { connectedPads } from '../engine/input.ts';
 import type { Game } from '../app/Game.ts';
-
-/** The six keys of a set laid out like a d-pad plus two buttons; `ask` marks the key being recorded. */
-export function KeyCluster(props: { keys: (string | undefined)[]; lit?: Set<string>; ask?: number }): JSX.Element {
-  const cap = (i: number, cls: string) => (
-    <div class={`key ${cls}`}>
-      <kbd class={props.ask === i ? 'ask' : props.keys[i] && props.lit?.has(props.keys[i]!) ? 'lit' : props.keys[i] && props.ask !== undefined ? 'lit' : ''}>
-        {props.keys[i] ? keyLabel(props.keys[i]!) : '?'}
-      </kbd>
-      {ACTION_LABELS[i]}
-    </div>
-  );
-  return (
-    <div class="cluster">
-      <div class="dpad">
-        {cap(0, 'up')}
-        {cap(3, 'left')}
-        {cap(2, 'down')}
-        {cap(1, 'right')}
-      </div>
-      <div class="acts">
-        {cap(4, '')}
-        {cap(5, '')}
-      </div>
-    </div>
-  );
-}
 
 /** One line describing a control set. */
 export function setDescription(s: ControlSet | null): string {
@@ -62,7 +38,7 @@ export function setDescription(s: ControlSet | null): string {
     case 'pad':
       if (isRemoteSet(s)) return 'Arrows move · OK bomb · hold OK special';
       if (s.half === 'left') return 'Left stick or d-pad · LB bomb · LT special';
-      if (s.half === 'right') return 'Right stick · A or RB bomb · B or RT special';
+      if (s.half === 'right') return 'Right stick · A or RB bomb · X or RT special';
       return 'Stick or d-pad · A bomb · B special';
     case 'mouse':
       return 'Point to walk · left bomb · right special';
@@ -216,6 +192,8 @@ export function ControlPicker(props: {
 }): JSX.Element {
   const { g, save } = useMenu();
   const [capture, setCapture] = useState(false);
+  /** the set the drawing shows: the one being looked at in the list, or else this player's own */
+  const [shown, setShown] = useState<string | null>(props.current);
   const sets = availableSets(g.settings.controls, g.app.input, g.app.isTouch);
   const usedSets = props.used.filter((id) => id !== props.current).map((id) => findSet(g.settings.controls, id)).filter(Boolean) as ControlSet[];
   if (capture) {
@@ -230,8 +208,15 @@ export function ControlPicker(props: {
       />
     );
   }
+  const art = findSet(g.settings.controls, shown ?? props.current ?? sets[0]?.id ?? '');
   return (
     <Modal title="Controls" onClose={props.onClose}>
+      {art && (
+        <div class="cart-box">
+          <h3>{art.name}</h3>
+          <ControllerArt set={art} />
+        </div>
+      )}
       <div class="gamelist">
         {sets.map((s) => {
           const clash = usedSets.find((u) => setsClash(u, s));
@@ -241,6 +226,8 @@ export function ControlPicker(props: {
               style={{ justifyContent: 'flex-start', borderRadius: '12px', minHeight: 'calc(var(--tap) * 1.1)' }}
               disabled={!!clash}
               data-autofocus={s.id === props.current ? '' : undefined}
+              onFocus={() => setShown(s.id)}
+              onMouseEnter={() => setShown(s.id)}
               onClick={() => props.onPick(s.id)}
             >
               <span>{s.name}</span>
@@ -343,8 +330,8 @@ export function useDeviceChanges(onChange?: () => void): void {
 /** How players join on this device. */
 export function joinHint(g: Game): string {
   if (g.app.isTouch && !g.app.input.keyboardSeen) return 'Two players can share this screen: choose “Touch, left side” and “Touch, right side”.';
-  if (isTvApp()) return 'To join, hold a button of your gamepad (or OK on the remote) for a moment. Two players can share a gamepad: one holds LB, the other A.';
-  return 'To join, press a key of a free keyboard set (like A or the period key), or hold a gamepad button for a moment.';
+  if (isTvApp()) return 'To join, hold any button of your gamepad (or OK on the remote) for a moment. Hold one again to share that gamepad between two players: its left half and its right half.';
+  return 'To join, press a key of a free keyboard set (like A or the period key), or hold any gamepad button for a moment. Hold one again to share that gamepad between two players.';
 }
 
 const MENU_KEYS = ['Enter', 'Escape', 'Tab', 'Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
@@ -357,18 +344,20 @@ export interface Join {
 
 /**
  * "Press a key or hold a button to join": a key of a free keyboard set (its bomb or special key, or any key that
- * is not a menu key) adds a player with that set at once; so does holding a button (not the d-pad) of a gamepad
- * that does not play yet, or the TV remote's OK: a short press stays a menu press. Two players can share a
- * gamepad: holding a button on the side of a gamepad played whole gives that half to the newcomer (the left
- * side: LB, LT, Select, the left stick's click; the right side: the other buttons) and the other half to its
- * player.
+ * is not a menu key) adds a player with that set at once; so does holding any button (not the d-pad, which moves
+ * in the menus) of a gamepad that does not play yet, or the TV remote's OK: a short press stays a menu press.
+ * A gamepad always joins whole. Holding a button on it again shares it between two players — whoever had it keeps
+ * the left half, the newcomer takes the right half, whichever button was held; the first hold on a gamepad that
+ * already plays only says so, so that nobody shares one by accident.
  */
 export function useJoinListener(enabled: boolean, used: string[], onJoin: (j: Join) => void): void {
-  const { g, setJoinHook } = useMenu();
+  const { g, setJoinHook, toast, sound } = useMenu();
   const usedRef = useRef(used);
   usedRef.current = used;
   const cb = useRef(onJoin);
   cb.current = onJoin;
+  /** gamepads that already played when a button on them was held (the next hold shares them) */
+  const claimed = useRef(new Set<string>());
   useEffect(() => {
     if (!enabled) return;
     const prefs = g.settings.controls;
@@ -394,22 +383,48 @@ export function useJoinListener(enabled: boolean, used: string[], onJoin: (j: Jo
         if (i < 0) return null;
         const whole = padSetId(pads, i);
         const label = (id: string) => findSet(prefs, id)?.name ?? id;
+        const join = (id: string): PadJoin => ({ id, label: label(id), hold: JOIN_HOLD_MS, hint: `Keep holding to join · ${label(id)}` });
         const users = usedRef.current.filter((u) => wholePad(u) === whole);
-        // the remote joins with OK (its Back stays Back)
-        if (gp.id === TV_REMOTE) return button === 0 && !users.length ? { id: whole, label: label(whole), hold: JOIN_HOLD_MS } : null;
-        if (!users.length) return { id: whole, label: label(whole), hold: JOIN_HOLD_MS };
-        if (!canSplit(gp)) return null;
-        const mine = padSetId(pads, i, LEFT_SIDE_BUTTONS.includes(button) ? 'left' : 'right');
-        // sharing a gamepad played whole takes a longer hold (its player may just be holding a button)
-        if (users.includes(whole)) return { id: mine, label: label(mine), hold: JOIN_HOLD_MS * 1.5, swap: { from: whole, to: otherHalf(mine) } };
-        return users.includes(mine) ? null : { id: mine, label: label(mine), hold: JOIN_HOLD_MS };
+        // the remote joins with OK (its Back stays Back), and is never shared
+        if (gp.id === TV_REMOTE) return button === 0 && !users.length ? join(whole) : null;
+        // nobody on this gamepad yet: it joins whole, whichever button is held
+        if (!users.length) return join(whole);
+        const said = (claim: string) => ({ id: whole, label: label(whole), hold: JOIN_HOLD_MS, hint: `${label(whole)} already plays · keep holding`, claim });
+        // two players share it already, or it is a gamepad whose halves the browser cannot tell apart
+        if (users.length > 1) return said(`${label(whole)} is shared by two players already — remove one to have it whole again`);
+        if (!canSplit(gp)) return said(`${label(whole)} already plays (this one cannot be shared between two players)`);
+        const one = users[0];
+        if (one === whole) {
+          // the first hold on a gamepad that already plays says so; the next one shares it
+          if (!claimed.current.has(whole)) {
+            return said(`${label(whole)} already plays — hold a button again to share it between two players`);
+          }
+          const right = halfOf(whole, 'right');
+          return {
+            id: right,
+            label: label(right),
+            hold: SPLIT_HOLD_MS,
+            hint: 'Keep holding: two players share this gamepad · its left half and its right half',
+            swap: { from: whole, to: halfOf(whole, 'left') },
+          };
+        }
+        // one player has half of it: the newcomer takes the other half
+        return free(otherHalf(one)) ? join(otherHalf(one)) : null;
       },
       // (the line-up may have changed since the button went down: the join must still be possible)
       join: (j) => {
+        if (j.claim) {
+          claimed.current.add(wholePad(j.id));
+          sound('ok');
+          toast(j.claim);
+          return;
+        }
         const used = usedRef.current;
         const swap = j.swap;
         const ok = swap ? used.includes(swap.from) && !used.some((u) => u !== swap.from && idsClash(prefs, u, j.id)) : free(j.id);
-        if (ok) cb.current({ id: j.id, swap });
+        if (!ok) return;
+        claimed.current.add(wholePad(j.id));
+        cb.current({ id: j.id, swap });
       },
     });
     return () => {

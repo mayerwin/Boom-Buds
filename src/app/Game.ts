@@ -13,6 +13,7 @@ import { matchPlay, playMatch, buildParams, rouletteScreen, playCampaign, type M
 import { editorEnter } from '../screens/editor.ts';
 import { Menus } from '../menu/index.tsx';
 import { showSplash } from '../menu/splash.tsx';
+import { curtainUp, hideCurtain, showCurtain } from '../menu/curtain.ts';
 import type { ScreenId } from '../menu/ctx.ts';
 import { firstPlayer, initialLineup } from '../menu/local.tsx';
 import { playingNow } from '../menu/lineup.ts';
@@ -170,6 +171,8 @@ export class Game {
     });
     let screen: ScreenId = 'home';
     for (;;) {
+      // (the match is over: the menus draw one frame under the curtain, then it goes)
+      if (curtainUp()) requestAnimationFrame(() => requestAnimationFrame(() => hideCurtain()));
       const e = await menus.open(screen);
       if (e.kind === 'classic') {
         await this.classicMenus();
@@ -222,6 +225,7 @@ export class Game {
   /** A local match from the modern menus (session.slots and the settings are ready). */
   private async playLocal(): Promise<void> {
     const s = this.session;
+    hideCurtain();
     s.netMode = 0;
     s.attract = 0;
     s.matchEnd = 0;
@@ -235,6 +239,7 @@ export class Game {
 
   /** A network match started in the lobby (session.slots come from the host). */
   private async playNet(params: MatchParams): Promise<void> {
+    hideCurtain();
     this.session.matchEnd = 0;
     this.prepareTouch();
     await playMatch(this, params);

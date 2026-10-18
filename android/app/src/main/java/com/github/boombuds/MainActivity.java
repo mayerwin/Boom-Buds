@@ -12,7 +12,6 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.SparseArray;
-import android.view.Choreographer;
 import android.view.Display;
 import android.view.InputDevice;
 import android.view.KeyEvent;
@@ -55,17 +54,20 @@ public final class MainActivity extends Activity implements InputManager.InputDe
     /** device id used for Back from the TV remote (the system's Back callback carries no device) */
     private static final int REMOTE_BACK_DEVICE = -2;
     private final Handler handler = new Handler(Looper.getMainLooper());
+    /** guards `pending`: WebView's own bridge thread takes events from it too (HostBridge.drainInput) */
+    private final Object inputLock = new Object();
     private final SparseArray<JSONObject> devices = new SparseArray<>();
     /** the axes last sent for each device (the same values again are not sent) */
     private final SparseArray<String> lastAxes = new SparseArray<>();
+    /** events on their way to the page (it also takes them itself when it samples its controllers) */
     private final ArrayList<JSONObject> pending = new ArrayList<>();
     private WebView webView;
     private InputManager inputManager;
     private DisplayManager displayManager;
     private NativeAudio nativeAudio;
     private volatile String displayInfo = "{}";
-    private boolean ready;
-    private boolean frameScheduled;
+    private volatile boolean ready;
+    private boolean flushPosted;
     private boolean resumed;
 
     @SuppressLint({"SetJavaScriptEnabled", "AddJavascriptInterface"})
@@ -128,7 +130,7 @@ public final class MainActivity extends Activity implements InputManager.InputDe
                 ready = false;
                 lastAxes.clear();
                 if (nativeAudio != null) nativeAudio.stopAll();
-                pending.clear();
+                clearInput();
             }
         });
         webView.addJavascriptInterface(new HostBridge(), "AndroidHost");
@@ -193,7 +195,7 @@ public final class MainActivity extends Activity implements InputManager.InputDe
         @JavascriptInterface public void ready() {
             runOnUiThread(() -> {
                 ready = true;
-                pending.clear();
+                clearInput();
                 devices.clear();
                 lastAxes.clear();
                 // gamepads first, then the remote: the same controllers get the same places at every launch
@@ -203,6 +205,17 @@ public final class MainActivity extends Activity implements InputManager.InputDe
                 emit(json("type", "lifecycle", "action", resumed ? "resume" : "pause"));
             });
         }
+        /**
+         * The events waiting for the page, taken by the page itself: android/tv/tv.js asks for them when the
+         * game samples its controllers, so a press reaches the very frame that follows it instead of the next
+         * one. Runs on WebView's bridge thread; `inputLock` guards the queue it shares with the UI thread.
+         */
+        @JavascriptInterface public String drainInput() {
+            String batch = takeInput();
+            return batch == null ? "" : batch;
+        }
+        /** The clock of the forwarded events' `time` (SystemClock.uptimeMillis), to compare with the page's. */
+        @JavascriptInterface public long now() { return android.os.SystemClock.uptimeMillis(); }
         @JavascriptInterface public String getDevices() {
             JSONArray result = new JSONArray();
             for (int id : InputDevice.getDeviceIds()) result.put(describeDevice(id));
@@ -389,26 +402,47 @@ public final class MainActivity extends Activity implements InputManager.InputDe
 
     private void emit(JSONObject event) {
         if (!ready || webView == null) return;
-        // Preserve every button edge. Collapse only adjacent stick snapshots for the same device, and only when no
-        // axis crossed half way (a d-pad on the hat axes or a trigger tapped between two frames must still arrive).
-        if ("motion".equals(event.optString("type")) && !pending.isEmpty()) {
-            JSONObject previous = pending.get(pending.size() - 1);
-            if ("motion".equals(previous.optString("type")) && previous.optJSONObject("device") != null
-                && previous.optJSONObject("device").optInt("id") == event.optJSONObject("device").optInt("id")
-                && digital(previous.optJSONObject("axes")) == digital(event.optJSONObject("axes"))) {
-                pending.set(pending.size() - 1, event);
+        synchronized (inputLock) {
+            // Preserve every button edge. Collapse only adjacent stick snapshots for the same device, and only when
+            // no axis crossed half way (a d-pad on the hat axes or a trigger tapped between two frames must still
+            // arrive).
+            if ("motion".equals(event.optString("type")) && !pending.isEmpty()) {
+                JSONObject previous = pending.get(pending.size() - 1);
+                if ("motion".equals(previous.optString("type")) && previous.optJSONObject("device") != null
+                    && previous.optJSONObject("device").optInt("id") == event.optJSONObject("device").optInt("id")
+                    && digital(previous.optJSONObject("axes")) == digital(event.optJSONObject("axes"))) {
+                    pending.set(pending.size() - 1, event);
+                } else pending.add(event);
             } else pending.add(event);
-        } else pending.add(event);
-        if (frameScheduled) return;
-        frameScheduled = true;
-        Choreographer.getInstance().postFrameCallback(time -> flush());
+        }
+        // Sent as soon as this input dispatch is over, not on the next display frame: that wait cost up to a frame
+        // of its own, right before the frame the press should already be in.
+        if (flushPosted) return;
+        flushPosted = true;
+        handler.post(this::flush);
+    }
+
+    /** The events waiting for the page as a JSON array, or null when there are none. */
+    private String takeInput() {
+        synchronized (inputLock) {
+            if (pending.isEmpty()) return null;
+            String batch = new JSONArray(pending).toString();
+            pending.clear();
+            return batch;
+        }
+    }
+
+    private void clearInput() {
+        synchronized (inputLock) {
+            pending.clear();
+        }
     }
 
     private void flush() {
-        frameScheduled = false;
-        if (!ready || webView == null || pending.isEmpty()) return;
-        JSONArray batch = new JSONArray(pending);
-        pending.clear();
+        flushPosted = false;
+        if (!ready || webView == null) return;
+        String batch = takeInput();
+        if (batch == null) return;
         webView.evaluateJavascript("if(window.BoomBudsAndroid&&window.BoomBudsAndroid.onInput){" + batch
             + ".forEach(function(e){window.BoomBudsAndroid.onInput(e);});}", null);
     }
@@ -450,7 +484,7 @@ public final class MainActivity extends Activity implements InputManager.InputDe
     @Override protected void onDestroy() {
         if (nativeAudio != null) nativeAudio.release();
         ready = false;
-        pending.clear();
+        clearInput();
         if (inputManager != null) inputManager.unregisterInputDeviceListener(this);
         if (displayManager != null) displayManager.unregisterDisplayListener(this);
         if (webView != null) {

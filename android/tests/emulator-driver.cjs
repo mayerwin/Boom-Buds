@@ -18,9 +18,19 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function adb(...args) {
   if (!/^emulator-\d+$/.test(serial)) throw new Error('This test driver only permits Android emulator targets.');
-  const result = spawnSync(adbPath, ['-s', serial, ...args], { encoding: 'utf8', timeout: 30000, windowsHide: true });
-  if (result.error || result.status !== 0) throw new Error(result.error?.message || result.stderr || result.stdout);
-  return result.stdout.trim();
+  // (a busy emulator drops off the air for a moment now and then; installing 40 MB on a cold one also takes
+  // its time)
+  let failure = '';
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    if (attempt > 1) {
+      spawnSync(adbPath, ['-s', serial, 'wait-for-device'], { encoding: 'utf8', timeout: 60000, windowsHide: true });
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 2000);
+    }
+    const result = spawnSync(adbPath, ['-s', serial, ...args], { encoding: 'utf8', timeout: 300000, windowsHide: true });
+    if (!result.error && result.status === 0) return result.stdout.trim();
+    failure = result.error?.message || result.stderr || result.stdout || `adb ${args[0]} failed`;
+  }
+  throw new Error(failure);
 }
 
 /** Linux key codes (input-event-codes.h) of the devices we create */
@@ -118,16 +128,27 @@ async function connect() {
       const timeout = setTimeout(() => {
         waiting.delete(id);
         reject(new Error(`CDP timed out: ${method}`));
-      }, 15000);
+      }, 30000);
       waiting.set(id, { resolve: (v) => (clearTimeout(timeout), resolve(v)), reject: (e) => (clearTimeout(timeout), reject(e)) });
       socket.send(JSON.stringify({ id, method, params }));
     });
   await send('Runtime.enable');
   await send('Page.enable');
-  async function evaluate(expression) {
-    const result = await send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true });
-    if (result.exceptionDetails) throw new Error(JSON.stringify(result.exceptionDetails));
-    return result.result.value;
+  /**
+   * A reading of the page. It may be busy for a while — a fresh start loads the whole game on an emulator that
+   * draws a few frames a second — and an answer that takes too long is asked for again rather than given up on.
+   */
+  async function evaluate(expression, tries = 3) {
+    for (let attempt = 1; ; attempt++) {
+      try {
+        const result = await send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true });
+        if (result.exceptionDetails) throw new Error(JSON.stringify(result.exceptionDetails));
+        return result.result.value;
+      } catch (error) {
+        if (attempt >= tries || !/timed out/.test(error.message)) throw error;
+        await sleep(500);
+      }
+    }
   }
   /** what the player sees: the modern menus' screen, or the round */
   const snapshot = () =>

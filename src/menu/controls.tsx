@@ -1,11 +1,13 @@
-// Controls: the control sets of this device. Keyboard sets can be tried, changed, renamed, reset and
-// created; gamepads, the mouse and touch controls are listed with how they play.
+// Controls: the control sets of this device. Gamepads (whole, or either half for two players on one) and the TV
+// remote are drawn with the buttons they play with; keyboard sets can be tried, changed, renamed, reset and
+// created. On a television the gamepads come first and the keyboard sets only once a keyboard has been used.
 
 import type { JSX } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
 import { useMenu } from './ctx.ts';
-import { KeyCapture, KeyCluster, setDescription } from './players.tsx';
-import { BUILTIN_KEY_SETS, availableSets, classicKeySets, type ControlSet } from '../app/controls.ts';
+import { KeyCapture, setDescription } from './players.tsx';
+import { ControllerArt, KeyCluster } from './controller.tsx';
+import { BUILTIN_KEY_SETS, availableSets, classicKeySets, isTvApp, keyboardsHere, type ControlSet } from '../app/controls.ts';
 
 export function Controls(): JSX.Element {
   const { g, back, save, toast } = useMenu();
@@ -31,6 +33,7 @@ export function Controls(): JSX.Element {
       clearInterval(t);
     };
   }, []);
+  const keyboards = keyboardsHere(g.app.input);
   const keySets = st.controls.sets.filter((s) => s.kind === 'keys');
   // touch sets are listed on touch screens; elsewhere one line says they exist
   const others = availableSets(st.controls, g.app.input, g.app.isTouch).filter((s) => s.kind !== 'keys');
@@ -43,19 +46,44 @@ export function Controls(): JSX.Element {
     save();
     redraw((x) => x + 1);
   };
-  return (
-    <div class="screen">
-      <div class="topbar">
-        <button class="btn" data-autofocus="" onClick={back}>◀ Back</button>
-        <h1>Controls</h1>
-        <button class="btn primary" onClick={() => setEdit('new')}>＋ New keyboard set</button>
+
+  const devices = (
+    <div class="panel">
+      <h2>
+        Gamepads, remote and more <span class="hint">two players can share a gamepad, a half each</span>
+      </h2>
+      <div class="sets">
+        {/* each card is a stop of the navigation: nothing in them to press, and they must still be reachable */}
+        {others.map((s) => (
+          <div class="set-card" tabIndex={0} role="group" aria-label={`${s.name}: ${setDescription(s)}`}>
+            <b>{s.name}</b>
+            <ControllerArt set={s} />
+            <span class="small muted">{setDescription(s)}</span>
+          </div>
+        ))}
+        {!pads.length && (
+          <div class="set-card" tabIndex={0}>
+            <b>Gamepads</b>
+            <span class="small muted">
+              Connect a gamepad (USB or Bluetooth) and press one of its buttons: it appears here and in the player
+              lists.
+            </span>
+          </div>
+        )}
       </div>
-      <div class="body" style={{ display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
-        <div class="panel">
-          <h2>Keyboard sets <span class="hint">keys light up when you press them</span></h2>
+    </div>
+  );
+
+  const keyboard = (
+    <div class="panel">
+      <h2>
+        Keyboard sets <span class="hint">{keyboards ? 'keys light up when you press them' : 'a keyboard is not in use here'}</span>
+      </h2>
+      {keyboards ? (
+        <>
           <div class="small muted">
-            Up to four players share a keyboard (some keyboards cannot tell many keys held at once apart). In the original
-            1997 menus the sets are KEY 0, KEY 1 and so on, as marked.
+            Up to four players share a keyboard (some keyboards cannot tell many keys held at once apart). In the
+            original 1997 menus the sets are KEY 0, KEY 1 and so on, as marked.
           </div>
           <div class="sets">
             {keySets.map((s) => (
@@ -108,24 +136,40 @@ export function Controls(): JSX.Element {
               </div>
             ))}
           </div>
+        </>
+      ) : (
+        <div class="small muted">
+          A keyboard works here too: plug one in (or pair it over Bluetooth) and press a key. Its four sets —
+          up to four players on one keyboard — then appear here and in the player lists.
         </div>
-        <div class="panel">
-          <h2>Gamepads, mouse and touch <span class="hint">two players can share a gamepad, one on each side</span></h2>
-          <div class="sets">
-            {others.map((s) => (
-              <div class="set-card">
-                <b>{s.name}</b>
-                <span class="small muted">{setDescription(s)}</span>
-              </div>
-            ))}
-            {!pads.length && (
-              <div class="set-card">
-                <b>Gamepads</b>
-                <span class="small muted">Connect a gamepad (USB or Bluetooth) and press a button: it appears here and in the player lists.</span>
-              </div>
-            )}
-          </div>
-        </div>
+      )}
+    </div>
+  );
+
+  return (
+    <div class="screen">
+      <div class="topbar">
+        <button class="btn" data-autofocus="" onClick={back}>◀ Back</button>
+        <h1>Controls</h1>
+        {keyboards ? (
+          <button class="btn primary" onClick={() => setEdit('new')}>＋ New keyboard set</button>
+        ) : (
+          <span style={{ width: 'calc(var(--tap) * 2)' }} />
+        )}
+      </div>
+      {/* one long column that scrolls as a whole: on a television the panels are taller than the screen */}
+      <div class="body flow">
+        {isTvApp() ? (
+          <>
+            {devices}
+            {keyboard}
+          </>
+        ) : (
+          <>
+            {keyboard}
+            {devices}
+          </>
+        )}
       </div>
       {edit && (
         <KeyCapture

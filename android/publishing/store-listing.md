@@ -1,7 +1,7 @@
 # Google Play listing
 
 Entered in Play Console on 14 October 2026 (sent for review with release 1.0.0); the descriptions were updated
-through the API on 16 October 2026, with release 1.0.1. The texts and files, for later edits: this file is the
+through the API on 16 October 2026 (release 1.0.1) and on 18 October 2026 (release 1.0.2). The texts and files, for later edits: this file is the
 source, sent with the Android Publisher API (edits.listings), so that Play says what the app does.
 
 | Field | Value |
@@ -27,7 +27,7 @@ Up to ten bombers. One arena. The last one standing wins.
 Boom Buds brings the bomb-dropping party classic of 1997 to your TV. Drop bombs, blast through the bricks, grab power-ups and corner your friends in chain reactions, across eleven arenas with conveyor belts, warps, trampolines and arrows.
 
 PLAY ON THE COUCH
-The whole couch plays on one TV: hold a button of your gamepad to join, and two friends can share a gamepad, one on each half. Bluetooth gamepads (Xbox, PlayStation, Switch Pro and others), the TV remote and keyboards all work, and the game remembers who plays with which. Fill the arena with computer players: the original 1997 computer player, or five skill levels from Rookie to Master.
+The whole couch plays on one TV: hold a button of your gamepad to join, and hold one again to share that gamepad with a friend, a half each. Bluetooth gamepads (Xbox, PlayStation, Switch Pro and others), the TV remote and keyboards all work, and the game remembers who plays with which. Fill the arena with computer players: the original 1997 computer player, or five skill levels from Rookie to Master.
 
 PLAY WITH FRIENDS ANYWHERE
 Network games need no account and no setup: games on your home network show up by themselves, and friends elsewhere join with a six-character room code, from their TV or from a web browser on a computer or phone. Chat in the lobby, agree on the rules, and play at full speed.
@@ -36,7 +36,7 @@ EVERY RULE OF THE ORIGINAL
 Kick, punch and grab bombs, trigger and jelly bombs, diseases, the walls closing in at the end of a round, teams, schemes and the Gold Bud roulette.
 
 MADE FOR THE TV
-Sharp pixels at 4K, quick sound effects, menus you drive with the remote or a gamepad. No accounts, no ads, no in-app purchases.
+Sharp pixels at 4K, quick sound effects, menus you drive with the remote or a gamepad, and every controller drawn with its buttons marked, so nobody has to guess what LB means. No accounts, no ads, no in-app purchases.
 
 ## Release notes
 
@@ -55,6 +55,6 @@ The icon, banner and feature graphic come from the website's main screen art
 (`node android/tools/generate-store-graphics.ts http://localhost:8080/` with a production build served); the
 launcher banner `app/src/main/res/drawable-xhdpi/tv_banner.png` (320 x 180) is made with them. The screenshots
 are the app on the 4K Google TV emulator (`android/tests/emulator-screenshots.cjs`: the main screen, a lobby with
-two players sharing a gamepad, two rounds), sent with `7-update-play-listing.bat -Screenshots` (16 October 2026).
+two players sharing a gamepad, two rounds), sent with `7-update-play-listing.bat -Screenshots` (18 October 2026).
 
 If Console asks whether the graphics were made with AI: the home screen art was.

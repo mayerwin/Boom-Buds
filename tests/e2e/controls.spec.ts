@@ -1,8 +1,10 @@
 // Menus and controls with the keyboard and with gamepads (made-up ones: navigator.getGamepads answers with
 // gamepads the test presses): the arrows go to the nearest control, a player's card is one stop that Enter goes
-// into, a setting changes only after Enter; holding a gamepad's button adds a player while a short press stays a
-// menu press; two players share a gamepad; the d-pad and sticks in the pause menus and the fast-forward; the
-// original 1997 menus show the modern line-up and keep theirs; Back to today hides during rounds.
+// into, a setting changes only after Enter; holding a gamepad's button adds a player whole while a short press
+// stays a menu press; holding one again shares that gamepad (left half, right half); the controls dialog draws
+// the controller it is about; the Controls screen scrolls to whatever the arrows reach on a television-sized
+// screen; the d-pad and sticks in the pause menus and the fast-forward; the original 1997 menus show the modern
+// line-up and keep theirs; Back to today hides during rounds.
 import { test, expect, type Page } from '@playwright/test';
 
 const XBOX = 'Xbox Wireless Controller (STANDARD GAMEPAD Vendor: 045e Product: 0b13)';
@@ -141,13 +143,17 @@ test('gamepads: hold a button to join, a short press stays a menu press, two pla
   await expect(cards(page)).toHaveCount(2);
   const id = `pad:0:${XBOX}`;
   expect(await stored(page)).toEqual(['kb-arrows', id]);
-  // LB held on that gamepad: a third player takes its left side, the second one keeps the right side
+  // a button held on that gamepad again (any button): it is shared — its player keeps the left half, the
+  // newcomer takes the right half
   await button(page, pad, 4, true);
-  await page.waitForTimeout(1500);
+  await page.waitForTimeout(400);
+  await expect(page.locator('.hold-join')).toContainText('two players share this gamepad');
+  await page.waitForTimeout(1100);
   await button(page, pad, 4, false);
   await expect(cards(page)).toHaveCount(3);
-  expect(await stored(page)).toEqual(['kb-arrows', `padR:0:${XBOX}`, `padL:0:${XBOX}`]);
-  await expect(cards(page).nth(2)).toContainText('LB bomb');
+  expect(await stored(page)).toEqual(['kb-arrows', `padL:0:${XBOX}`, `padR:0:${XBOX}`]);
+  await expect(cards(page).nth(1)).toContainText('LB bomb');
+  await expect(cards(page).nth(2)).toContainText('X or RT special');
   // a round: the left side moves with the d-pad, the right side with the right stick
   await page.getByRole('button', { name: 'Start ▶' }).click();
   await expect.poll(() => game<boolean>(page, '!!g.runner'), { timeout: 10_000 }).toBe(true);
@@ -170,6 +176,15 @@ test('gamepads: hold a button to join, a short press stays a menu press, two pla
   expect(await moves(left, (on, dir) => button(page, pad, 12 + dir, on))).toBe(true);
   const dirs = [[1, 0], [0, 1], [-1, 0], [0, -1]];
   expect(await moves(right, (on, dir) => stick(page, pad, on ? [0, 0, dirs[dir][0], dirs[dir][1]] : [0, 0, 0, 0]))).toBe(true);
+  // the right half drops its bomb with A and uses the special with X (not the triggers, which it may not reach)
+  const bits = (i: number) => game<number>(page, `g.runner.inputs[${i}]`);
+  await button(page, pad, 0, true);
+  await expect.poll(() => bits(right)).toBe(16);
+  await button(page, pad, 0, false);
+  await button(page, pad, 2, true);
+  await expect.poll(() => bits(right)).toBe(32);
+  await button(page, pad, 2, false);
+  await expect.poll(() => bits(right)).toBe(0);
   // Start pauses; the right stick moves in the pause menu; B resumes
   await tap(page, pad, 9);
   await expect(page.locator('#pause-root.open')).toBeVisible();
@@ -229,13 +244,13 @@ test('1997 mode: the modern line-up shows (KEY 0, JOY 0 R, JOY 0 L), a gamepad w
   await page.keyboard.press('Enter'); // Start Game -> player setup
   await page.waitForTimeout(1500);
   const humans = await game<string[]>(page, 'g.session.slots.filter((s) => s.type === 2 || s.type === 3).map((s) => s.type + ":" + s.dev + ":" + s.ctl)');
-  expect(humans).toEqual(['2:0:kb-arrows', `3:0:padR:0:${XBOX}`, `3:0:padL:0:${XBOX}`]);
+  expect(humans).toEqual(['2:0:kb-arrows', `3:0:padL:0:${XBOX}`, `3:0:padR:0:${XBOX}`]);
   // Player 1: KEY 0 -> KEY 1 (Right), kept for the modern menus too
   await page.keyboard.press('ArrowRight');
   await page.waitForTimeout(300);
   await page.keyboard.press('Enter'); // -> options (no "Problem!!": the halves of one gamepad do not clash)
   await page.waitForTimeout(1500);
-  expect(await stored(page)).toEqual(['kb-esdf', `padR:0:${XBOX}`, `padL:0:${XBOX}`]);
+  expect(await stored(page)).toEqual(['kb-esdf', `padL:0:${XBOX}`, `padR:0:${XBOX}`]);
   await page.keyboard.press('Enter'); // -> round
   await expect.poll(() => game<boolean>(page, '!!g.runner'), { timeout: 10_000 }).toBe(true);
   // (in the bar beside the picture or over it: hidden either way, and it stays hidden)
@@ -252,5 +267,76 @@ test('1997 mode: the modern line-up shows (KEY 0, JOY 0 R, JOY 0 L), a gamepad w
   await tap(page, pad, 13);
   await tap(page, pad, 0);
   await expect.poll(() => game<number>(page, 'g.runner.s.forcedDraw')).toBe(1);
+  expect(errors).toEqual([]);
+});
+test('the controls dialog draws the controller, and a gamepad is shared only after a second hold', async ({ page }) => {
+  const errors = trackErrors(page);
+  await fakePads(page);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Local Game' }).click();
+  const pad = await addPad(page, XBOX);
+  await page.waitForTimeout(200);
+  // the controls button of a player opens the dialog, with a drawing of the controls it is about
+  await page.getByRole('button', { name: 'controls of Player 1' }).click();
+  await expect(page.locator('.modal .cart-box h3')).toHaveText('Keyboard right');
+  // looking at another one in the list draws that one instead, with the names of its buttons
+  const whole = page.locator('.modal .gamelist button', { hasText: 'Xbox' }).first();
+  await whole.focus();
+  await expect(page.locator('.modal .cart-box h3')).toContainText('Xbox');
+  await expect(page.locator('.modal .cart-legend')).toContainText('A or X');
+  await whole.click();
+  await expect(cards(page).first()).toContainText('A bomb');
+  expect(await stored(page)).toEqual([`pad:0:${XBOX}`]);
+  // a button held on a gamepad that already plays only says so: nobody is added by accident
+  await button(page, pad, 0, true);
+  await page.waitForTimeout(1100);
+  await button(page, pad, 0, false);
+  await expect(page.locator('.toast')).toContainText('already plays');
+  await expect(cards(page)).toHaveCount(1);
+  // held again: two players share it, the left half for the one who had it, the right half for the newcomer
+  await button(page, pad, 0, true);
+  await page.waitForTimeout(1500);
+  await button(page, pad, 0, false);
+  await expect(cards(page)).toHaveCount(2);
+  expect(await stored(page)).toEqual([`padL:0:${XBOX}`, `padR:0:${XBOX}`]);
+  expect(errors).toEqual([]);
+});
+
+test('the Controls screen shows everything the arrows reach on a television-sized screen', async ({ page }) => {
+  const errors = trackErrors(page);
+  await fakePads(page);
+  // a 4K television lays the menus out in about this many CSS pixels (its pixel ratio is 4)
+  await page.setViewportSize({ width: 960, height: 540 });
+  await page.goto('/');
+  await addPad(page, XBOX);
+  await page.getByRole('button', { name: 'Controls' }).click();
+  await expect(page.getByRole('heading', { name: 'Controls' })).toBeVisible();
+  const look = () =>
+    page.evaluate(() => {
+      const a = document.activeElement as HTMLElement | null;
+      const r = a?.getBoundingClientRect();
+      const body = document.querySelector('#menu-root .body.flow') as HTMLElement | null;
+      return {
+        label: a?.getAttribute('aria-label') ?? a?.textContent?.trim() ?? '',
+        top: r?.top ?? 0,
+        bottom: r?.bottom ?? 0,
+        scroll: body?.scrollTop ?? -1,
+        room: body ? body.scrollHeight - body.clientHeight : -1,
+      };
+    });
+  const start = await look();
+  expect(start.room).toBeGreaterThan(0); // (the screen is taller than the television: it must scroll)
+  const hidden: string[] = [];
+  let last = start;
+  for (let i = 0; i < 30; i++) {
+    await page.keyboard.press('ArrowDown');
+    await page.waitForTimeout(40);
+    last = await look();
+    if (last.bottom > 541 || last.top < -1) hidden.push(`${last.label} at ${Math.round(last.top)}..${Math.round(last.bottom)}`);
+  }
+  expect(hidden).toEqual([]);
+  // down past the last control: the rest of the screen (the drawings of the gamepads) comes into view
+  expect(last.scroll).toBeGreaterThan(last.room - 2);
+  await expect(page.locator('#menu-root .cart-svg').last()).toBeInViewport();
   expect(errors).toEqual([]);
 });

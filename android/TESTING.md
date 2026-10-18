@@ -6,11 +6,15 @@
   mapping of buttons, d-pad, hat, sticks and triggers; the right stick from Z / RZ, or RX / RY on gamepads
   without them; the remote's devices merged into one "TV remote" gamepad; quick taps kept until a display frame
   has seen them; key repeats; Back meaning B in the menus and Start in a round; releasing everything when the
-  app goes to the background; one snapshot per display frame), and `tests/controls.test.ts` (gamepads known by
-  name, halves of a gamepad, the 1997 menus' KEY n / JOY n L / R).
+  app goes to the background; one snapshot per display frame; the events waiting in the app fetched when the
+  game reads its controllers, acted on once each; a remote press the game saw only once taken for a tap), and
+  `tests/controls.test.ts` (gamepads known by name, halves of a gamepad — A / RB bomb and X / RT special on the
+  right one — the 1997 menus' KEY n / JOY n L / R).
 - `npm run e2e` includes `tests/e2e/controls.spec.ts`, with made-up gamepads in Chrome: holding a button
-  joins, a short press is a menu press, two players on one gamepad, sticks in the pause menus, the d-pad in
-  the fast-forward and the 1997 pause box, the modern line-up in the 1997 player setup.
+  joins a gamepad whole, a short press is a menu press, a second hold shares it (left half, right half) while
+  the first hold on a gamepad that already plays only says so, the controls dialog draws the controller it is
+  about, the Controls screen shows everything the arrows reach on a television-sized screen, sticks in the pause
+  menus, the d-pad in the fast-forward and the 1997 pause box, the modern line-up in the 1997 player setup.
 - `gradlew.bat test lint` (in `android/`): `DisplayPolicy` (which display mode is 4K at the current refresh
   rate), `InputMath` (stick dead zones), `NativeAudio.assetPath` (game URLs to packaged files, nothing outside
   them).
@@ -41,12 +45,13 @@ $env:BB_QA_SERIAL = 'emulator-5558'; node android/tests/emulator-smoke.cjs
 
 `emulator-smoke.cjs` checks, from a fresh install: the remote and the gamepad show up as gamepads; the remote's
 arrows move the menu focus and OK opens Local Game; player 1 is the gamepad, a short OK of the remote does not
-join but a held one does, LB held on the gamepad adds a player on its left half and removing that player gives
-player 1 the whole gamepad back; a round starts with gamepad, remote and computer players; both move their bombers;
+join but a held one does, a button held on the gamepad says it already plays and held again shares it (its left
+half for player 1, its right half for a third player) until removing that player gives player 1 the whole gamepad
+back; a round starts with gamepad, remote and computer players; both move their bombers;
 with trigger bombs the gamepad's A still drops one at once and B sets it off; the remote's OK drops a bomb at
 once, and with trigger bombs a short OK drops one when let go while a long OK (the special) sets it off; every effect and voice is preloaded in `SoundPool` and the bombs play there (no Web
-Audio fallback); Back pauses (the simulation stops), Back resumes, Quit returns to the lobby; Back returns to the main
-screen and, there, leaves the app; the WebView covers the whole output and the game canvas has one pixel per
+Audio fallback); Back pauses (the simulation stops), Back resumes, Quit returns to the lobby at once (the record says how many
+milliseconds that took); Back returns to the main screen and, there, leaves the app; the WebView covers the whole output and the game canvas has one pixel per
 physical pixel; no page errors. Screenshots and a JSON record go to `app/build/qa/<serial>/`.
 
 `emulator-keyboard.cjs` plays with a virtual keyboard: the menus follow the arrows and Enter, the arrow keys and
@@ -55,13 +60,25 @@ E S D F play two bombers, Esc pauses.
 `emulator-1997.cjs` plays 1997 mode with the remote: OK goes through the original menus to a round, "Back to
 today" stays hidden during it, Back opens the original's pause box and its arrows and OK choose in it.
 
-`emulator-screenshots.cjs` makes the store screenshots on the 4K emulator (the main screen, a lobby where a second
-player took the left half of the gamepad by holding LB, two rounds); look at them, then send them with
+`emulator-screenshots.cjs` makes the store screenshots on the 4K emulator (the main screen, a lobby where a
+second player took the right half of the gamepad by holding a button twice, two rounds); look at them, then send them with
 `publishing/7-update-play-listing.bat -Screenshots`. `emulator-release-smoke.cjs` plays the signed release APK (no
 DevTools there) with the virtual remote and takes screenshots to look at.
 
 The emulators render with SwiftShader at a few frames per second: they prove input paths, sound routing and
 pixels, not smoothness or real audio latency (HDMI, soundbars and a TV's own processing are outside the app).
+
+## Results (18 October 2026)
+
+- `npm test` (88 tests), `npm run e2e` (20), JVM tests and lint pass.
+- On the 720p emulator: `emulator-smoke.cjs`, `emulator-keyboard.cjs` and `emulator-1997.cjs` pass. Leaving a
+  match reached the lobby in about 0.3 s there (it used to wait a second on the round's last picture before the
+  menus were even built).
+- Ten single taps of the remote and of a gamepad all reached the menus (the emulator falls seconds behind while
+  it loads, so the test driver now waits for what a press should do instead of pressing once and hoping).
+- The input path was shortened for this release: Android hands a press to the page as soon as it has it instead
+  of waiting for the next display frame, and the page takes whatever is waiting at the moment it reads its
+  controllers (`AndroidHost.drainInput`), so a press lands in the frame that follows it.
 
 ## Results (15 October 2026)
 

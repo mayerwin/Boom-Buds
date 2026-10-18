@@ -150,11 +150,17 @@ export const REMOTE_HOLD_MS = 300;
  * the special instead, and a short press is the bomb button when OK is let go. The kind of press is decided
  * when OK goes down. A press already down when the round starts or resumes is ignored until it is let go.
  * Only the remote's player is concerned: every other controller keeps its own two buttons.
+ *
+ * A press the game only ever saw once — it went down and up between two frames, which happens where frames are
+ * far apart — counts as a short press however long ago that frame was: the bomb is what the player meant far
+ * more often than the special.
  */
 export class RemoteButton {
   private downAt = -1;
   /** this press can be the special (decided when OK went down) */
   private dual = false;
+  /** frames that saw this press (one: the game never saw OK held, so it cannot have been a long press) */
+  private frames = 0;
   private tapUntil = 0;
   private waitRelease = true;
 
@@ -168,24 +174,28 @@ export class RemoteButton {
     }
     if (now < this.tapUntil) out |= IN_ACT1; // a short press, let go: the bomb button
     if (!ok) {
-      if (this.downAt >= 0 && this.dual && now - this.downAt < REMOTE_HOLD_MS) {
+      if (this.downAt >= 0 && this.dual && (this.frames < 2 || now - this.downAt < REMOTE_HOLD_MS)) {
         this.tapUntil = now + 50; // (a few simulation ticks see it)
         out |= IN_ACT1;
       }
       this.downAt = -1;
+      this.frames = 0;
       return out;
     }
     if (this.downAt < 0) {
       this.downAt = now;
       this.dual = special;
+      this.frames = 0;
     }
+    this.frames++;
     if (!this.dual) return out | IN_ACT1;
-    return now - this.downAt >= REMOTE_HOLD_MS ? out | IN_ACT2 : out;
+    return this.frames > 1 && now - this.downAt >= REMOTE_HOLD_MS ? out | IN_ACT2 : out;
   }
 
   /** The pause menu is open: forget the press, wait for OK to be let go. */
   suspend(): void {
     this.downAt = -1;
+    this.frames = 0;
     this.tapUntil = 0;
     this.waitRelease = true;
   }

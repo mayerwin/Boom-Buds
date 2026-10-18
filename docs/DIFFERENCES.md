@@ -60,7 +60,8 @@ button in the top right corner (or Ctrl+M) ends it. It means:
   cursor shows on every screen of the original menus once the mouse moves, until a key is pressed, and a click
   acts like a tap on a touch screen: it selects and activates);
 * the original minimum waits before the draw, results and setup screens can be left (1 s, 3 s in network
-  games; by default there is none, so Enter starts the next round at once).
+  games; by default there is none, so Enter starts the next round at once), and its pause at the end of a match
+  (1 s on the round's last picture; by default the menus come back at once, under a curtain while they are drawn).
 
 Each of these can also be kept for good, on its own, under *Keep some of the original's ways* in Options.
 Whatever the mode, the system's mouse cursor shows beside the game picture (in the bars around it), so that
@@ -172,7 +173,8 @@ keeps its original meaning, off), and so does a tap on the "AI n" text on a touc
   that four players can share a keyboard: E S D F to move with A = bomb and Q = special, the arrow keys with
   . = bomb and , = special, I J K L with ; and P, the numpad's 8 4 5 6 with 0 and Enter; more can be recorded),
   a gamepad or one half of it (two players on one gamepad: the left stick or the d-pad with LB = bomb and
-  LT = special, and the right stick with A or RB = bomb and B or RT = special), the mouse (the bomber walks toward the pointer, left button = bomb, right button =
+  LT = special, and the right stick with A or RB = bomb and X or RT = special — the two buttons a thumb reaches
+  without letting go of that stick), the mouse (the bomber walks toward the pointer, left button = bomb, right button =
   special) or the on-screen touch controls (one player, or two players on one device with one side bar
   each). Keyboard sets use physical key positions, so they work on any keyboard layout; their labels follow
   the keyboard. The original menus' two keyboard layouts KEY 0 and KEY 1 are the sets "Keyboard right" and
@@ -183,9 +185,13 @@ keeps its original meaning, off), and so does a tap on the "AI n" text on a touc
   name, so a player finds their gamepad again after it reconnects or at the next visit; a player whose device
   is missing is left out of the line-up until it comes back.
 * **Joining (modern menus).** A key of a free keyboard set adds its player at once; a gamepad (or the TV
-  remote's OK) joins when one of its buttons is held for 0.8 s, so that a short press stays a menu press. Held
-  on a gamepad already played whole, a button gives the newcomer that side of it (LB, LT, Select or the left
-  stick's click: the left half; the other buttons: the right half) and the other half to its player.
+  remote's OK) joins when any of its buttons is held for 0.8 s, so that a short press stays a menu press, and it
+  joins whole. A button held on a gamepad that already plays says so on screen; held again (1.2 s) it shares that
+  gamepad between two players, whichever button it is: the player who had it keeps the left half, the newcomer
+  takes the right half, and when one of them leaves the other gets the whole gamepad back.
+* **What a control set looks like.** The controls of a player (their card's controls button, and the Controls
+  menu) are drawn: the gamepad, remote, mouse or touch screen with its move, bomb and special buttons marked and
+  named, because "LB" and "LT" mean nothing until you have seen where they are.
 * **Menu navigation (modern menus).** The arrows, a d-pad or a stick always move to the nearest control in
   that direction. A player's card is one stop: Enter (A) goes into it, the arrows reach its colour, team,
   controls and ✕, Escape (B) or an arrow past its edge comes out. Settings with values to go through (steppers,

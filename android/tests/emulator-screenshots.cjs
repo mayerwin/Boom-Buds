@@ -1,5 +1,5 @@
 // Store screenshots from the debug APK on the 4K Google TV emulator: the main screen, a Local Game lobby (two
-// players sharing a gamepad, the second one joined by holding LB, and computer players) and a round with six
+// players sharing a gamepad, the second one joined by holding a button twice, and computer players) and a round with six
 // bombers, captured at 3840 x 2160 and scaled to 1920 x 1080 (PowerShell's System.Drawing).
 // Usage: BB_QA_SERIAL=emulator-5558 node android/tests/emulator-screenshots.cjs
 // Output: android/publishing/screenshots/*.png (look at them before uploading: capturing is not judging).
@@ -48,13 +48,17 @@ async function main() {
     await shot('1-home');
     await click(/Local Game/);
     await app.waitFor((s) => s.heading === 'Local Game', 'Expected the lobby');
-    // a second player takes the left half of the gamepad, holding LB (once the lobby is set up: a slow emulator
-    // draws the screen well before it listens)
+    // the gamepad is shared between two players: a button held once says it already plays, held again it is
+    // shared (this emulator draws the screen well before it listens, and falls behind while it loads, so the
+    // button is held until the second player is there)
     await sleep(2000);
-    await input.key(2, 'BUTTON_L1', 4000);
-    await sleep(500);
-    const players = await app.evaluate("document.querySelectorAll('#menu-root .players')[0].querySelectorAll('.pcard[data-group]').length");
-    if (players !== 2) throw new Error('LB held: expected two players sharing the gamepad, got ' + players);
+    const players = () => app.evaluate("document.querySelectorAll('#menu-root .players')[0].querySelectorAll('.pcard[data-group]').length");
+    for (let i = 0; i < 5 && (await players()) < 2; i++) {
+      await input.key(2, 'BUTTON_L1', 4000);
+      await sleep(1500);
+    }
+    const shared = await players();
+    if (shared !== 2) throw new Error('held again: expected two players sharing the gamepad, got ' + shared);
     for (let i = 0; i < 4; i++) {
       await click(/Add computer player/);
       await sleep(250);

@@ -13,6 +13,8 @@ import { TouchControls, isTouchDevice } from '../engine/touch.ts';
 import { enterFullscreenLandscape } from '../engine/mobile.ts';
 import { loadJson, type TextJson } from '../engine/assets.ts';
 import { loadSettings, saveSettings, type Settings } from './settings.ts';
+import { diagParam, showDiag } from './diag.ts';
+import { isTvApp } from './controls.ts';
 import { SCREEN_W, SCREEN_H } from '../engine/constants.ts';
 import { flattenValues } from '../game/sim/sim.ts';
 
@@ -88,6 +90,8 @@ export class App {
       const want = inside ? 'none' : 'default';
       if (canvas.style.cursor !== want) canvas.style.cursor = want;
     });
+    // the TV app: the menus leave out what costs a television too much (menu.css .tv-app)
+    if (isTvApp()) document.documentElement.classList.add('tv-app');
     const params = new URLSearchParams(location.search);
     this.showFps = params.has('fps');
     window.addEventListener('resize', () => this.layout());
@@ -103,6 +107,7 @@ export class App {
     this.audio.setSfxVolume(this.settings.sfxVolume);
     this.audio.setMusicVolume(this.settings.musicVolume);
     this.layout();
+    showDiag(diagParam() || !!this.settings.diagnostics);
     if (this.showFps) {
       const el = document.createElement('div');
       el.style.cssText = 'position:fixed;left:4px;top:4px;color:#0f0;font:12px monospace;z-index:20;pointer-events:none;text-shadow:1px 1px #000';

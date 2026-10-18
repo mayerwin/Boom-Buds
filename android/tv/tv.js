@@ -2,7 +2,8 @@
  * Boom Buds on Android TV: the TV app's controllers, presented to the shared game as standard gamepads.
  *
  * The WebView has no Gamepad API, so MainActivity forwards the key and stick events of gamepads and of the TV
- * remote (window.BoomBudsAndroid.onInput) and this adapter answers navigator.getGamepads() with them, in the
+ * remote (window.BoomBudsAndroid.onInput, and whatever is still waiting is fetched by this adapter itself when
+ * the game samples its controllers: AndroidHost.drainInput) and this adapter answers navigator.getGamepads(), in the
  * standard mapping the game already reads (A = bomb / select, B = special / back, Start = pause, d-pad and left
  * stick = move). The remote is one gamepad: its arrows move, OK is A, and Back is B in the menus and Start
  * during a round (it pauses). Keyboards and mice are left to the WebView. Loaded before the game (android/
@@ -45,6 +46,11 @@
       this.cache = null;
       this.cacheFrame = -1;
       this.cacheAt = 0;
+      /** fetches the events still waiting in the app, called before a new snapshot is made (install sets it) */
+      this.pull = null;
+      this.pulling = false;
+      /** the last press, for the diagnostics overlay: {seq, time (the app's clock), recv (the page's)} */
+      this.edge = { seq: 0, time: 0, recv: 0 };
     }
 
     on(fn) {
@@ -118,7 +124,7 @@
         const p = this.pad(e.device);
         p.timestamp = now;
         if (e.action === 'down') {
-          if (!p.held[b]) { p.until[b] = now + TAP_MS; p.at[b] = this.frame; }
+          if (!p.held[b]) { p.until[b] = now + TAP_MS; p.at[b] = this.frame; this.pressed(e, now); }
           p.held[b] = true;
           return e.repeat ? -1 : b;
         }
@@ -136,13 +142,17 @@
         // Z and RZ are triggers (a gamepad without its own key layout: both rest at -1 together, which no stick does)
         if ('rx' in a && 'z' in a && a.z <= -0.95 && a.rz <= -0.95) p.zTriggers = true;
         const zx = 'z' in a && !p.zTriggers, zy = 'rz' in a && !p.zTriggers;
+        const was = p.axes;
         p.axes = [a.x || 0, a.y || 0, (zx ? a.z : a.rx) || 0, (zy ? a.rz : a.ry) || 0];
         // a d-pad on the hat axes: a direction pressed is kept for a tap, as a key is (press and release can both
         // come between two display frames)
         const hat = [a.hatX || 0, a.hatY || 0];
         for (const [b, axis, sign] of HAT_DIRS) {
-          if (hat[axis] * sign > 0.5 && !(p.hat[axis] * sign > 0.5)) { p.until[b] = now + TAP_MS; p.at[b] = this.frame; }
+          if (hat[axis] * sign > 0.5 && !(p.hat[axis] * sign > 0.5)) { p.until[b] = now + TAP_MS; p.at[b] = this.frame; this.pressed(e, now); }
         }
+        // a stick pushed past half way counts as a press too (the menus and the bombers read it as a direction)
+        const far = (v) => Math.abs(v || 0) > 0.5;
+        if ([0, 1, 2, 3].some((i) => far(p.axes[i]) && !far(was[i]))) this.pressed(e, now);
         p.hat = hat;
         const trigger = (v) => (p.zTriggers && v !== undefined ? (v + 1) / 2 : 0);
         p.analog[6] = Math.max(a.ltrigger || 0, a.brake || 0, trigger(a.z));
@@ -151,8 +161,22 @@
       return -1;
     }
 
+    /** Note a press for the diagnostics overlay (src/app/diag.ts): when the app saw it, when the page did. */
+    pressed(e, now) {
+      this.edge = { seq: this.edge.seq + 1, time: e.time || 0, recv: now };
+    }
+
     /** navigator.getGamepads(), standard mapping (the same snapshot again within a display frame, until an event) */
     snapshot() {
+      // whatever the app has for us, now that the game is looking: a press is in the frame that follows it
+      if (this.pull && !this.pulling) {
+        this.pulling = true;
+        try {
+          this.pull();
+        } finally {
+          this.pulling = false;
+        }
+      }
       const now = this.now();
       if (this.cache && this.cacheFrame === this.frame && now - this.cacheAt < 50) return this.cache;
       this.cacheFrame = this.frame;
@@ -195,32 +219,49 @@
       win.dispatchEvent(ev);
     });
     let unlocked = false;
-    win.BoomBudsAndroid = {
-      pads,
-      onInput(e) {
-        const pressed = pads.input(e);
-        if (pressed < 0) return;
-        // a controller press is a gesture for the game's sound
-        if (!unlocked) {
-          unlocked = true;
-          win.__boombuds?.app?.audio?.unlock?.();
-        }
-        const g = game();
-        // (a page that failed to start, or is still loading, has nothing to go back in: Back leaves, as TV apps do)
-        if (e.code === 'BACK' && !g) {
-          win.AndroidHost?.exit?.();
-          return;
-        }
-        if (e.code === 'BACK' && pressed === 1 && g && g.menus && g.menus.screen === 'home' && !doc.querySelector('.modal-wrap') &&
-          doc.getElementById('menu-root')?.classList.contains('open')) {
-          win.AndroidHost?.exit?.(); // Back on the main screen leaves the app, as TV apps do
-          return;
-        }
-        // OK on a text field: the on-screen keyboard (the forwarded key no longer opens it)
-        const el = doc.activeElement;
-        if (pressed === 0 && el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) win.AndroidHost?.showKeyboard?.();
-      },
+    /** One forwarded event, however it arrived: pushed by the app, or fetched by `pads.pull`. */
+    const handle = (e) => {
+      const pressed = pads.input(e);
+      if (pressed < 0) return;
+      // a controller press is a gesture for the game's sound
+      if (!unlocked) {
+        unlocked = true;
+        win.__boombuds?.app?.audio?.unlock?.();
+      }
+      const g = game();
+      // (a page that failed to start, or is still loading, has nothing to go back in: Back leaves, as TV apps do)
+      if (e.code === 'BACK' && !g) {
+        win.AndroidHost?.exit?.();
+        return;
+      }
+      if (e.code === 'BACK' && pressed === 1 && g && g.menus && g.menus.screen === 'home' && !doc.querySelector('.modal-wrap') &&
+        doc.getElementById('menu-root')?.classList.contains('open')) {
+        win.AndroidHost?.exit?.(); // Back on the main screen leaves the app, as TV apps do
+        return;
+      }
+      // OK on a text field: the on-screen keyboard (the forwarded key no longer opens it)
+      const el = doc.activeElement;
+      if (pressed === 0 && el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) win.AndroidHost?.showKeyboard?.();
     };
+    // Reading the controllers takes the events waiting in the app: the fastest path from a press to the frame
+    // that acts on it (the app also sends them on its own, for whatever is not sampling them).
+    pads.pull = () => {
+      let batch = '';
+      try {
+        batch = win.AndroidHost?.drainInput?.() || '';
+      } catch {
+        return; // (the app is gone)
+      }
+      if (!batch) return;
+      let events;
+      try {
+        events = JSON.parse(batch);
+      } catch {
+        return;
+      }
+      for (const e of events) handle(e);
+    };
+    win.BoomBudsAndroid = { pads, onInput: handle };
     const ready = () => win.AndroidHost?.ready?.();
     if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', ready);
     else ready();

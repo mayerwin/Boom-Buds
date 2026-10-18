@@ -31,8 +31,10 @@ export function HowTo(): JSX.Element {
         <h1>How to Play</h1>
         <span style={{ width: 'calc(var(--tap) * 2)' }} />
       </div>
+      {/* the panels are stops of their own: with nothing to press in them, the arrows would never reach their
+          text on a television (src/menu/nav.ts data-scroller) */}
       <div class="body cols-2">
-        <div class="panel scroll prose">
+        <div class="panel scroll prose" tabIndex={0} data-scroller="" role="group" aria-label="how to play">
           <h3>Goal</h3>
           <p>Blow up the bricks, grab power-ups and be the last bud standing. Winning a round scores a point; the first to the number of wins set for the match takes it.</p>
           <h3>Buttons</h3>
@@ -42,7 +44,7 @@ export function HowTo(): JSX.Element {
               <b>{s.name}:</b> {keysSummary(s.keys!)} <span class="muted">(move · bomb special)</span>
             </p>
           ))}
-          <p class="small"><b>Gamepad:</b> stick or d-pad, A bomb, B special. Two players can share one: on the left side the left stick or d-pad, LB bomb, LT special; on the right side the right stick, A or RB bomb, B or RT special.</p>
+          <p class="small"><b>Gamepad:</b> stick or d-pad, A bomb, B special. Two players can share one, a half each: on the left side the left stick or d-pad, LB bomb, LT special; on the right side the right stick, A or RB bomb, X or RT special. The Controls menu draws every controller with its buttons marked.</p>
           <p class="small"><b>TV remote:</b> arrows, OK bomb, hold OK for the special. <b>Touch:</b> on-screen stick, A bomb, B special. <b>Mouse:</b> point where to walk, left button bomb, right button special.</p>
           <p class="small muted">During a round: Esc (or a gamepad's Start) pauses · F10 ends the round in a draw · Ctrl-Q leaves the match. When only computer players are left: ← → (or the d-pad) change the speed, ↑ ↓ pause.</p>
           <h3>Diseases</h3>
@@ -50,7 +52,7 @@ export function HowTo(): JSX.Element {
           <h3>Arenas</h3>
           <p class="small">Arrows turn kicked bombs, conveyor belts carry everyone along, warp holes teleport you, trampolines throw you over the walls. When time runs out, the walls close in.</p>
         </div>
-        <div class="panel scroll">
+        <div class="panel scroll" tabIndex={0} data-scroller="" role="group" aria-label="power-ups">
           <h2>Power-ups</h2>
           <div class="powers">
             {POWERS.map(([id, name, what]) => (

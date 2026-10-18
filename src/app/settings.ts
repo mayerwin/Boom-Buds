@@ -50,6 +50,8 @@ export interface Settings {
   classicWaits: number;
   /** rounds run four times as fast once only computer players are left */
   fastForward: number;
+  /** show the frame rate and the delay from a press to a drawn frame (src/app/diag.ts) */
+  diagnostics: number;
   /** the last Local Game players' chosen colours and teams (by player, then by computer player; -1: none) */
   localLooks: { players: Look[]; bots: Look[] };
   /** the last Local Game line-up: control set of each human player, skill of each computer player */
@@ -124,6 +126,7 @@ export function defaultSettings(): Settings {
     classicMouse: 0,
     classicWaits: 0,
     fastForward: 1,
+    diagnostics: 0,
     localLooks: { players: [], bots: [] },
     localPlayers: [],
     localBots: [0],
