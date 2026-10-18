@@ -76,6 +76,9 @@ pixels, not smoothness or real audio latency (HDMI, soundbars and a TV's own pro
   menus were even built).
 - Ten single taps of the remote and of a gamepad all reached the menus (the emulator falls seconds behind while
   it loads, so the test driver now waits for what a press should do instead of pressing once and hoping).
+- The diagnostics overlay was read on the 720p emulator through its Options toggle: 60 fps, frame 16.7 ms,
+  press to frame 19 ms, app to page 19 ms (that emulator's own input stack). A press is counted against the
+  frame handed over after it, not the one already being drawn, which read as 0 ms at first.
 - The input path was shortened for this release: Android hands a press to the page as soon as it has it instead
   of waiting for the next display frame, and the page takes whatever is waiting at the moment it reads its
   controllers (`AndroidHost.drainInput`), so a press lands in the frame that follows it.

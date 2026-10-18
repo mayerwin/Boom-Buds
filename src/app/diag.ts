@@ -5,9 +5,11 @@
 // What the overlay shows:
 //   fps / frame        the display frames the page really gets (a TV that draws 30 a second feels heavy
 //                      however short the input path is)
-//   press -> frame     from the moment of the press to the first frame drawn after it. Keys carry their own
-//                      time (KeyboardEvent.timeStamp), gamepads the time their state was read; in the TV app
-//                      the time Android saw the event, so the trip into the page is included.
+//   press -> frame     from the moment of the press to the frame handed over after it: the game reads its
+//                      controllers while a frame is being drawn, and the player sees that frame at the next
+//                      one, so a press is counted against the frame that follows the one that took it. Keys
+//                      carry their own time (KeyboardEvent.timeStamp), gamepads the time their state was read;
+//                      in the TV app the time Android saw the event, so the trip into the page is included.
 //   app -> page        the TV app only: from the Android event to the page acting on it (android/tv/tv.js).
 // What no page can measure is what comes after a frame is handed over: the compositor, HDMI and the screen's
 // own processing. A TV in its usual picture mode adds 50-100 ms there; its game mode is what cuts that.
@@ -65,7 +67,7 @@ class Diag {
   private fpsFrames = 0;
   private fpsAt = 0;
   private shownAt = 0;
-  /** presses waiting for the next frame (the page's clock) */
+  /** presses taken by the frame being drawn; the next one hands them over (the page's clock) */
   private pending: number[] = [];
   /** the TV app's clock minus the page's (the forwarded events carry the app's) */
   private offset: number | null = null;
@@ -139,9 +141,10 @@ class Diag {
     if (this.last) this.frames.add(now - this.last);
     this.last = now;
     this.fpsFrames++;
-    this.collectPads(now);
+    // what the last frame took is handed over now (a press read during a frame is drawn by it)
     for (const t of this.pending) this.presses.add(Math.max(0, now - t));
     this.pending.length = 0;
+    this.collectPads(now);
     if (now - this.fpsAt >= 500) {
       this.fps = (this.fpsFrames * 1000) / (now - this.fpsAt);
       this.fpsFrames = 0;

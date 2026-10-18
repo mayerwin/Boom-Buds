@@ -67,7 +67,7 @@ day. The existing Play service account has access, and the first AAB went up thr
 hold-to-join, two players per gamepad, the reworked menu navigation) went to Alpha as a completed release on
 16 October 2026. Version 1.0.2 (code 7, the shorter input path, the drawings of the
 controllers, sharing a gamepad on purpose, the Controls screen that scrolls on a TV and the instant way out of
-a match) followed on 18 October 2026.
+a match) followed on 18 October 2026, and 1.0.3 (code 8) right after it, with the input-delay readout counting a press against the frame it is handed over in rather than the one already being drawn.
 
 The signing keys are in `publishing/secrets/` (ignored by git): **keep a backup of that folder** (the keys,
 their passwords, the version-code counter). The listing texts are in
