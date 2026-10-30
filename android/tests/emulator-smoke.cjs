@@ -5,7 +5,8 @@
 //   already plays and a second hold shares it (its left half for player 1, its right half for a third player,
 //   whose removal gives the whole pad back); a round starts; both move their bombers, the remote drops a bomb;
 //   the effects play through native SoundPool;
-//   Back pauses (the round stops), Back resumes; quitting returns to the lobby at once; Back leaves the menus and,
+//   Back pauses (the round stops), Back resumes; between rounds Back asks whether to leave the match and Back
+//   again stays; quitting returns to the lobby at once; Back leaves the menus and,
 //   on the main screen, the app; the game canvas is drawn at the WebView's full physical resolution.
 // Usage: BB_QA_SERIAL=emulator-5556 node android/tests/emulator-smoke.cjs [apk]
 // Evidence (screenshots, emulator-smoke.json) goes to android/app/build/qa/<serial>/.
@@ -199,7 +200,30 @@ async function main() {
     // (after the countdown)
     for (let i = 0; i < 40 && (await pos(0)).tick === t1; i++) await sleep(200);
     assert.ok((await pos(0)).tick > t1, 'the round goes on');
+    // between two rounds (a draw from the pause menu): Back asks whether to leave the match, Back again stays, OK
+    // plays the next round
+    await pressUntil(REMOTE, 'BACK', (s) => s.paused, 'Back pauses for a draw');
+    await sleep(500);
+    for (let attempt = 1; attempt <= 3 && !(await app.snapshot()).between; attempt++) {
+      await focusButton('#pause-root', '/End this round/');
+      await input.key(REMOTE, 'DPAD_CENTER');
+      try {
+        await app.waitFor((s) => s.between, '', 8000);
+      } catch (_) {
+        /* again */
+      }
+    }
+    await app.waitFor((s) => s.between, 'a draw ends the round', 2000);
+    await sleep(2000); // (the draw picture, then the screen waits for a key)
+    await pressUntil(REMOTE, 'BACK', (s) => s.question === 'Quit the match?', 'Back between rounds asks');
+    await shot('5-between-rounds');
+    await sleep(500);
+    await pressUntil(REMOTE, 'BACK', (s) => !s.paused, 'Back in that question stays');
+    assert.ok((await app.snapshot()).between, 'still between rounds');
+    await check('between rounds');
+    await pressUntil(REMOTE, 'DPAD_CENTER', (s) => s.round && !s.between, 'OK plays the next round', 15000);
     // quit from the pause menu
+    await sleep(1500); // (the next round's first frames)
     await pressUntil(REMOTE, 'BACK', (s) => s.paused, 'Back pauses again');
     await sleep(500); // (the pause menu ignores gamepads for 300 ms: other players may be pressing a button)
     // (a pause menu that just opened ignores the gamepads for a moment: another player may be pressing a button)
@@ -216,8 +240,13 @@ async function main() {
       }
     }
     assert.ok(backInMs >= 0, 'Quit returns to the lobby');
-    // (no end-of-match wait any more: the menus come back under a curtain — src/menu/curtain.ts)
+    // (no end-of-match wait any more: the menus come back under a curtain — src/menu/curtain.ts — which goes)
     await check('quit', { backInMs });
+    for (let i = 0; i < 20 && (await app.evaluate('!!document.getElementById("curtain-root")')); i++) await sleep(250);
+    assert.equal(await app.evaluate('!!document.getElementById("curtain-root")'), false, 'the curtain goes once the menus are up');
+    // the TURN relays of network games, asked for at start-up (when the build has a credentials API: VITE_TURN_API)
+    const relays = await app.evaluate(`performance.getEntriesByType('resource').filter((e)=>e.name.includes('turn/credentials')).map((e)=>e.responseStatus)`);
+    await check('relay credentials', { relays });
 
     // the canvas is drawn at the WebView's physical resolution
     const display = JSON.parse(await app.evaluate('AndroidHost.getDisplayInfo()'));

@@ -155,6 +155,7 @@ async function connect() {
     evaluate(`(()=>{const g=window.__boombuds&&window.__boombuds.game;const m=document.getElementById('menu-root');
       return {menus:!!m&&m.classList.contains('open'),screen:g&&g.menus?g.menus.screen:null,heading:document.querySelector('#menu-root h1')?.textContent||'',
         focused:document.activeElement?.innerText?.slice(0,40)||'',paused:!!document.getElementById('pause-root')?.classList.contains('open'),
+        question:document.querySelector('#pause-root.open h2')?.textContent||'',between:!!(g&&g.runner&&!g.runner.inRound),
         round:!!(g&&g.runner)&&!(m&&m.classList.contains('open')),pads:navigator.getGamepads().filter(Boolean).map(p=>p.id),
         viewport:{width:innerWidth,height:innerHeight,dpr:devicePixelRatio}};})()`);
   const waitFor = async (predicate, message, timeout = 15000) => {
