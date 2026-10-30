@@ -221,10 +221,12 @@ guest Wi-Fi, some home routers, company and school networks. There the game goes
 recommended way to give the build one is a credentials API such as Metered's: put its URL
 (`https://<app>.metered.live/api/v1/turn/credentials?apiKey=…`) in the repository variable `TURN_API`, which the
 deployment workflow passes to the build as `VITE_TURN_API` (set `VITE_TURN_API` yourself for other builds, such as
-the TV app's). The game asks it for the relays once at start-up, before anyone connects, keeps the answer for 30
-minutes, and connects with the STUN servers alone when it gets no answer within 2.5 s (the next connection asks
-again). The key is in the published game, as any TURN credential used by a browser is: use a key made for this,
-with a monthly limit. Fixed relays work too: `VITE_TURN_URLS`, `VITE_TURN_USERNAME` and `VITE_TURN_CREDENTIAL` (the
+the TV app's). The game asks it for the relays when Network Game opens (local games ask nothing), keeps the answer
+for 30 minutes, and connects with the STUN servers alone when it gets no answer within 2.5 s (the next connection
+asks again). It also asks the relay for one address: when that fails (the service is down or out of reach, or its
+monthly allowance is used up), a small note on the Network Game screen says so, and devices that can connect
+directly still play. The key is in the published game, as any TURN credential used by a browser is: use a key made
+for this, with a monthly limit. Fixed relays work too: `VITE_TURN_URLS`, `VITE_TURN_USERNAME` and `VITE_TURN_CREDENTIAL` (the
 repository variables `TURN_URLS` and `TURN_USERNAME` and the secret `TURN_CREDENTIAL`). To check that the relay
 really carries a game, give both devices `?nodirect`: they then connect only through relays, so without one they
 cannot connect at all.

@@ -1,6 +1,18 @@
-// The servers a network connection tries: public STUN, then the TURN relays of a credentials API (src/net/mesh.ts).
+// The servers a network connection tries: public STUN, then the TURN relays of a credentials API, and the check
+// that tells the Network Game screen whether those relays work (src/net/mesh.ts).
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { RelayList, iceServers, parseIceServers, RELAY_TTL_MS, RELAY_TIMEOUT_MS } from '../src/net/mesh.ts';
+import {
+  RelayList,
+  checkRelays,
+  iceServers,
+  parseIceServers,
+  probeRelays,
+  relayStatus,
+  RELAY_CHECK_MS,
+  RELAY_TTL_MS,
+  RELAY_TIMEOUT_MS,
+  type RelayStatus,
+} from '../src/net/mesh.ts';
 
 const URL = 'https://relay.example/api/v1/turn/credentials?apiKey=test';
 const METERED = [
@@ -26,7 +38,10 @@ function api(...answers: (unknown | Error)[]) {
 
 const urls = (list: RTCIceServer[]) => list.flatMap((s) => (Array.isArray(s.urls) ? s.urls : [s.urls]));
 
-afterEach(() => vi.useRealTimers());
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
 
 describe('ICE servers', () => {
   it('without a credentials API: the public STUN servers only', async () => {
@@ -112,5 +127,153 @@ describe('ICE servers', () => {
       { urls: ['turn:a'] },
       { urls: ['stun:b'] },
     ]);
+  });
+});
+
+/** A relay check that answers `answers` in turn, keeping the lists it was given. */
+function prober(...answers: RelayStatus[]) {
+  const lists: RTCIceServer[][] = [];
+  const probe = async (servers: RTCIceServer[]) => {
+    lists.push(servers);
+    return answers[Math.min(lists.length, answers.length) - 1];
+  };
+  return { probe, lists };
+}
+
+describe('relay check (the note on the Network Game screen)', () => {
+  it('without a credentials API there is nothing to check', async () => {
+    expect(await checkRelays()).toBe('none');
+    expect(relayStatus()).toBe('none');
+  });
+
+  it('relays that give an address are ok, and are not checked again while the list is kept', async () => {
+    let now = 0;
+    const a = api(METERED, METERED);
+    const p = prober('ok');
+    const relays = new RelayList(URL, a.get, () => now);
+    expect(relays.status).toBe('checking');
+    expect(await relays.check(p.probe)).toBe('ok');
+    expect(relays.status).toBe('ok');
+    expect(p.lists[0]).toHaveLength(METERED.length);
+    expect(await relays.check(p.probe)).toBe('ok');
+    expect(p.lists).toHaveLength(1);
+    now += RELAY_TTL_MS;
+    expect(await relays.check(p.probe)).toBe('ok');
+    expect(a.calls).toHaveLength(2);
+    expect(p.lists).toHaveLength(2);
+  });
+
+  it('checks made while one is under way share it', async () => {
+    const a = api(METERED);
+    const p = prober('ok');
+    const relays = new RelayList(URL, a.get);
+    expect(await Promise.all([relays.check(p.probe), relays.check(p.probe)])).toEqual(['ok', 'ok']);
+    expect(a.calls).toHaveLength(1);
+    expect(p.lists).toHaveLength(1);
+  });
+
+  it('an API refusing for its allowance (402, 429): limit; any other failure: unavailable', async () => {
+    const cases: [unknown, RelayStatus][] = [
+      [json({ error: 'quota' }, 402), 'limit'],
+      [json({ error: 'slow down' }, 429), 'limit'],
+      [json({ error: 'bad key' }, 401), 'unavailable'],
+      [json({ error: 'oops' }, 500), 'unavailable'],
+      [new TypeError('Failed to fetch'), 'unavailable'],
+      [[], 'unavailable'],
+    ];
+    for (const [answer, status] of cases) {
+      const p = prober('ok');
+      const relays = new RelayList(URL, api(answer).get);
+      expect(await relays.check(p.probe)).toBe(status);
+      expect(relays.status).toBe(status);
+      expect(p.lists).toHaveLength(0);
+    }
+  });
+
+  it('a failed check is not kept: the next one asks again and finds the relay back', async () => {
+    const a = api(json({}, 402), METERED, METERED);
+    const p = prober('limit', 'ok');
+    const relays = new RelayList(URL, a.get);
+    expect(await relays.check(p.probe)).toBe('limit');
+    // credentials, but the relay relays nothing (its allowance used up)
+    expect(await relays.check(p.probe)).toBe('limit');
+    expect(await relays.check(p.probe)).toBe('ok');
+    expect(a.calls).toHaveLength(2);
+    expect(p.lists).toHaveLength(2);
+    // connections get the relays all along
+    expect(await iceServers(relays)).toHaveLength(1 + METERED.length);
+  });
+
+  it('a check that throws counts as unavailable', async () => {
+    const relays = new RelayList(URL, api(METERED).get);
+    expect(await relays.check(() => Promise.reject(new Error('no WebRTC')))).toBe('unavailable');
+  });
+});
+
+/** A stand-in RTCPeerConnection whose ICE gathering gives `events`: a candidate type, a TURN error code, or null (the end). */
+function fakePeerConnection(events: (string | number | null)[]) {
+  const made: { config: RTCConfiguration; closed: boolean }[] = [];
+  class FakePC {
+    onicecandidate: ((e: { candidate: { type: string; candidate: string } | null }) => void) | null = null;
+    onicecandidateerror: ((e: { errorCode: number }) => void) | null = null;
+    private me: { config: RTCConfiguration; closed: boolean };
+    constructor(config: RTCConfiguration) {
+      this.me = { config, closed: false };
+      made.push(this.me);
+    }
+    createDataChannel() {
+      return {};
+    }
+    async createOffer() {
+      return { type: 'offer', sdp: '' };
+    }
+    async setLocalDescription() {
+      for (const e of events) {
+        await Promise.resolve();
+        if (typeof e === 'number') this.onicecandidateerror?.({ errorCode: e });
+        else this.onicecandidate?.({ candidate: e === null ? null : { type: e, candidate: `candidate:1 1 udp 1 203.0.113.9 50000 typ ${e}` } });
+      }
+    }
+    close() {
+      this.me.closed = true;
+    }
+  }
+  vi.stubGlobal('RTCPeerConnection', FakePC);
+  return made;
+}
+
+describe('relay probe (one relayed address asked for)', () => {
+  it('a relayed address: ok; only the TURN servers are asked, for relayed paths, and the connection is closed', async () => {
+    const made = fakePeerConnection(['relay']);
+    expect(await probeRelays(METERED)).toBe('ok');
+    expect(made).toHaveLength(1);
+    expect(made[0].config.iceTransportPolicy).toBe('relay');
+    expect(urls(made[0].config.iceServers!)).toEqual(METERED.slice(1).map((s) => s.urls));
+    expect(made[0].closed).toBe(true);
+  });
+
+  it('refused for its allowance (486, Allocation Quota Reached): limit', async () => {
+    fakePeerConnection([486, 486, null]);
+    expect(await probeRelays(METERED)).toBe('limit');
+  });
+
+  it('out of reach, or refused otherwise: unavailable', async () => {
+    fakePeerConnection([701, 401, null]);
+    expect(await probeRelays(METERED)).toBe('unavailable');
+  });
+
+  it('no TURN server in the list: unavailable, without asking', async () => {
+    const made = fakePeerConnection(['relay']);
+    expect(await probeRelays([METERED[0]])).toBe('unavailable');
+    expect(made).toHaveLength(0);
+  });
+
+  it('gives up after 5 s without an address', async () => {
+    vi.useFakeTimers();
+    const made = fakePeerConnection([]);
+    const r = probeRelays(METERED);
+    await vi.advanceTimersByTimeAsync(RELAY_CHECK_MS);
+    expect(await r).toBe('unavailable');
+    expect(made[0].closed).toBe(true);
   });
 });

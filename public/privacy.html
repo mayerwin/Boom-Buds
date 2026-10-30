@@ -27,11 +27,11 @@
     <p>Button presses and stick movements control the game on the device. The TV app does not ask for access to your contacts, location, microphone, camera or files, and it does not scan for Bluetooth devices: pairing controllers is done in the TV's settings.</p>
 
     <h2>Network games</h2>
-    <p>Local games (everyone on one device) send nothing about you over the internet. When the game starts, it asks Metered's TURN service (metered.ca) for the addresses and passwords of its relay servers, so that a network game can use them at once; that request carries only what every web request does, such as your IP address. When you open Network Game or join a game:</p>
+    <p>Local games (everyone on one device) send nothing over the internet. When you open Network Game or join a game:</p>
     <ul>
       <li><b>Finding each other.</b> To connect, devices exchange a short handshake through free public message relays (MQTT brokers run by EMQX, HiveMQ and the Eclipse Mosquitto project). The handshake is encrypted with a key made from the room code, so the relays cannot read it. To list the games open on your own network, a host announces its game (the host's player name, the room code, the number of players and the arena) on a relay channel derived from the network's public address.</li>
       <li><b>Connection addresses.</b> Like any video call, the devices learn each other's IP addresses to connect directly, with the help of public STUN servers (Cloudflare and Google) that tell a device its public address.</li>
-      <li><b>Relays.</b> When a network blocks direct connections (some mobile carriers, guest Wi-Fi, company and school networks), the devices connect through a TURN relay server run by Metered. It passes the game's encrypted WebRTC traffic on without being able to read it.</li>
+      <li><b>Relays.</b> The game asks Metered's TURN service (metered.ca) for the addresses and passwords of its relay servers, and checks that one of them answers; these requests carry only what every web request does, such as your IP address. When a network blocks direct connections (some mobile carriers, guest Wi-Fi, company and school networks), the devices connect through such a relay server. It passes the game's encrypted WebRTC traffic on without being able to read it.</li>
       <li><b>During the game.</b> Your player name, your bomber's look, your chat messages and your moves go directly and encrypted (WebRTC) to the other players of that game, who see them. They are not sent to the developer.</li>
     </ul>
     <p>These relays and servers are operated by third parties under their own policies; Boom Buds sends them only what is described above, and keeps nothing.</p>

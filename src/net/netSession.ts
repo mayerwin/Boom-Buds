@@ -3,7 +3,7 @@
 // everything outside the simulation (players, settings, when screens advance); during rounds every
 // machine runs the same deterministic simulation from everybody's inputs (rollback, src/net/rollback.ts).
 
-import { Mesh, decodeInputMsg } from './mesh.ts';
+import { Mesh, checkRelays, decodeInputMsg } from './mesh.ts';
 import { RoomSignaling } from './room.ts';
 import { LocalRelay, MqttRelay, type Relay } from './relay.ts';
 import type { InputMsg } from './rollback.ts';
@@ -151,6 +151,8 @@ export class NetSession {
 
   /** Connect to the relay; rejects when it cannot be reached (offline). */
   static async connect(name: string, relay: Relay = defaultRelay()): Promise<NetSession> {
+    // the TURN relays too, meanwhile: ready before anyone connects
+    void checkRelays();
     await relay.start();
     return new NetSession(relay, name);
   }

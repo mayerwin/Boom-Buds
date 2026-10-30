@@ -101,6 +101,14 @@ edge, trigger bombs), and the computer players exercise every rule in long tourn
   `turn:global.relay.metered.ca:80` over UDP (relay candidates on both sides); without `?nodirect` the same two
   took the direct host path, as before; with `?nodirect` and no relay configured they never connected (the join
   gave up after 16 s). Joining took the same time with and without the relay list.
+* Relay check (2026-10-30, Chrome, Vite dev server with `VITE_TURN_API`): nothing asks the credentials API until
+  Network Game opens. There, with Metered answering, the relay gave an address and no note shows; with the API
+  answering 401 or 500, or out of reach, the note says the relay is unavailable within 0.2 s; answering 402 (or
+  429), that its monthly allowance is used up; with credentials the relay refuses (TURN 401), unavailable after
+  the 5 s check. The 1997 host and join screens show the same note in grey. On this Windows machine Chrome's first
+  RTCPeerConnection holds the page for about 6 s (the Network Game screen already opened one for finding games on
+  the network): the API's 2.5 s limit and the 5 s check count only time the page runs, so that stall does not
+  make a working relay look unavailable.
 
 ### Under latency
 

@@ -7,6 +7,7 @@ import type { Game } from '../app/Game.ts';
 import { K } from '../ui/menuInput.ts';
 import { isRealKey } from '../ui/ui.ts';
 import { NetSession } from '../net/netSession.ts';
+import { relayStatus } from '../net/mesh.ts';
 import { normalizeRoomCode } from '../net/room.ts';
 import { matchPlay } from './match.ts';
 
@@ -58,6 +59,15 @@ async function netConnect(g: Game): Promise<NetSession | null> {
   return result;
 }
 
+/** The relay server's trouble, in grey (network games still work without it), from line `y` on. */
+function relayNote(g: Game, x: number, y: number, lineHeight: number): void {
+  const s = relayStatus();
+  if (s !== 'unavailable' && s !== 'limit') return;
+  const what = s === 'limit' ? "Relay server's monthly allowance used up:" : 'Relay server unavailable:';
+  g.ui.print(what, 560, x, y, g.ui.col.grey, g.ui.col.black);
+  g.ui.print('some networks may not connect.', 560, x, y + lineHeight, g.ui.col.grey, g.ui.col.black);
+}
+
 function beginSession(g: Game, net: NetSession): void {
   g.session.beginNet(net);
   g.ui.netMode = g.session.netMode;
@@ -102,6 +112,7 @@ export async function netStartGameScreen(g: Game): Promise<void> {
         const text = c ? ui.fmt(71, c.name, c.id) : ui.msg(72);
         ui.print(text, ui.value(778), ui.value(775), ui.value(776) + ui.value(777) * i, ui.col.white, ui.col.black);
       }
+      relayNote(g, ui.value(775), ui.value(776) + ui.value(777) * 5, ui.value(777));
       let k = await ui.flip();
       if (k === K.MOUSE && ui.pointerMenus) k = K.ENTER;
       if (isRealKey(k)) ui.letter();
@@ -138,6 +149,7 @@ export async function netJoinGameScreen(g: Game): Promise<void> {
     for (;;) {
       ui.restore();
       ui.print(ui.fmt(66, net.name), ui.value(753), ui.value(750), ui.value(751), ui.col.cyan, ui.col.black);
+      relayNote(g, ui.value(750), ui.value(751) + 48, 24);
       await ui.flip();
       ui.mouseShow();
       const typed = await g.dlg.getString('', 8, 'Enter the room code of the game:', 25, 180);

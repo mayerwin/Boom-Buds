@@ -26,7 +26,7 @@ export interface PeerConn {
 const STUN: RTCIceServer = { urls: ['stun:stun.cloudflare.com:3478', 'stun:stun.l.google.com:19302'] };
 /** how long a relay list from the credentials API is used before it is asked for again */
 export const RELAY_TTL_MS = 30 * 60_000;
-/** how long the credentials API gets to answer (a connection made meanwhile waits for it) */
+/** how long the credentials API gets to answer (time the page runs; a connection made meanwhile waits for it) */
 export const RELAY_TIMEOUT_MS = 2500;
 
 /** The servers of a credentials API's answer: an array of RTCIceServer, or `{ iceServers: [...] }`. */
@@ -48,14 +48,49 @@ export function parseIceServers(data: unknown): RTCIceServer[] {
 type Fetch = (url: string, init: RequestInit) => Promise<Response>;
 
 /**
+ * Whether network games have their relay: 'none' (the build has no credentials API), 'checking', 'ok',
+ * 'unavailable' (no answer, a refusal, or a relay this network cannot reach) or 'limit' (the relay service's
+ * allowance is used up). Without a relay, devices that can connect directly still play.
+ */
+export type RelayStatus = 'none' | 'checking' | 'ok' | 'unavailable' | 'limit';
+type Probe = (servers: RTCIceServer[]) => Promise<RelayStatus>;
+
+/** HTTP and TURN answers that mean the allowance is used up: Payment Required, Too Many Requests, Allocation Quota Reached */
+const LIMIT_CODES = new Set([402, 429, 486]);
+/** how long a relay check waits for the relay to give this device an address (time the page runs) */
+export const RELAY_CHECK_MS = 5000;
+
+/**
+ * Call `f` once the page has run for `ms`; returns what cancels it. The time counts in quarter seconds, so that
+ * a page stalled meanwhile does not give up too soon: a browser's first peer connection can hold the page for
+ * seconds (the Network Game screen opens one to find the games on its network).
+ */
+function afterRunning(ms: number, f: () => void): () => void {
+  let waited = 0;
+  const timer = setInterval(() => {
+    if ((waited += 250) < ms) return;
+    clearInterval(timer);
+    f();
+  }, 250);
+  return () => clearInterval(timer);
+}
+
+/**
  * TURN relays from a credentials API (Metered's: a GET returns the STUN and TURN servers with their
  * credentials). The list is kept for 30 minutes. A request that fails or takes longer than 2.5 s gives no relays
  * this time and is not kept: the next connection asks again.
  */
 export class RelayList {
+  /** what the last check found */
+  status: RelayStatus = 'checking';
   private servers: RTCIceServer[] | null = null;
   private at = 0;
   private pending: Promise<RTCIceServer[]> | null = null;
+  /** the HTTP status of the last request that gave no relays (0: no answer, or no servers in it) */
+  private refused = 0;
+  private checking: Promise<RelayStatus> | null = null;
+  /** the list a check found working (by the time it came) */
+  private workedAt = -1;
   private readonly url: string;
   private readonly get: Fetch;
   private readonly clock: () => number;
@@ -73,12 +108,33 @@ export class RelayList {
     return this.pending;
   }
 
+  /**
+   * Whether the relays work: the list, then a relayed address from them (`probe`). A list found working is not
+   * checked again while it is kept; a failed check is not kept either.
+   */
+  check(probe: Probe = probeRelays): Promise<RelayStatus> {
+    if (this.status === 'ok' && this.workedAt === this.at && this.clock() - this.at < RELAY_TTL_MS) return Promise.resolve('ok');
+    if (!this.checking) this.checking = this.recheck(probe).finally(() => (this.checking = null));
+    return this.checking;
+  }
+
+  private async recheck(probe: Probe): Promise<RelayStatus> {
+    const list = await this.load();
+    const status = list.length ? await probe(list).catch((): RelayStatus => 'unavailable') : LIMIT_CODES.has(this.refused) ? 'limit' : 'unavailable';
+    if (status === 'ok') this.workedAt = this.at;
+    return (this.status = status);
+  }
+
   private async request(): Promise<RTCIceServer[]> {
     const abort = new AbortController();
-    const timer = setTimeout(() => abort.abort(), RELAY_TIMEOUT_MS);
+    const stop = afterRunning(RELAY_TIMEOUT_MS, () => abort.abort());
+    this.refused = 0;
     try {
       const r = await this.get(this.url, { cache: 'no-store', signal: abort.signal });
-      if (!r.ok) return [];
+      if (!r.ok) {
+        this.refused = r.status;
+        return [];
+      }
       const list = parseIceServers(await r.json());
       if (list.length) {
         this.servers = list;
@@ -88,8 +144,39 @@ export class RelayList {
     } catch {
       return [];
     } finally {
-      clearTimeout(timer);
+      stop();
     }
+  }
+}
+
+/**
+ * Whether TURN relays give this device a relayed address (one allocation, released at once). The credentials
+ * API answering is not enough: a relay whose allowance is used up, or that this network cannot reach, still
+ * relays nothing.
+ */
+export async function probeRelays(servers: RTCIceServer[]): Promise<RelayStatus> {
+  const turn = servers.filter((s) => (Array.isArray(s.urls) ? s.urls : [s.urls]).some((u) => /^turns?:/.test(u)));
+  if (!turn.length || typeof RTCPeerConnection !== 'function') return 'unavailable';
+  const pc = new RTCPeerConnection({ iceServers: turn, iceTransportPolicy: 'relay' });
+  const codes: number[] = [];
+  const verdict = (): RelayStatus => (codes.some((c) => LIMIT_CODES.has(c)) ? 'limit' : 'unavailable');
+  try {
+    return await new Promise<RelayStatus>((resolve) => {
+      const done = (s: RelayStatus) => {
+        stop();
+        resolve(s);
+      };
+      const stop = afterRunning(RELAY_CHECK_MS, () => done(verdict()));
+      pc.onicecandidateerror = (e) => codes.push((e as RTCPeerConnectionIceErrorEvent).errorCode);
+      pc.onicecandidate = (e) => {
+        if (!e.candidate) done(verdict());
+        else if (e.candidate.type === 'relay' || / typ relay /.test(e.candidate.candidate)) done('ok');
+      };
+      pc.createDataChannel('probe');
+      pc.createOffer().then((o) => pc.setLocalDescription(o)).catch(() => done('unavailable'));
+    });
+  } finally {
+    pc.close();
   }
 }
 
@@ -97,9 +184,17 @@ const env = import.meta.env ?? {};
 const relayApi = String(env.VITE_TURN_API ?? '').trim();
 const RELAYS = relayApi && typeof fetch === 'function' ? new RelayList(relayApi) : null;
 
-/** Ask the credentials API now (at start-up), so that the first connection finds the relays ready. */
-export function prefetchIceServers(): void {
-  void RELAYS?.load();
+/**
+ * Ask the credentials API for the relays and check that they work: when the network screens open, so that the
+ * first connection finds the relays ready (local games ask nothing).
+ */
+export function checkRelays(): Promise<RelayStatus> {
+  return RELAYS ? RELAYS.check() : Promise.resolve('none');
+}
+
+/** What the last relay check found (see checkRelays). */
+export function relayStatus(): RelayStatus {
+  return RELAYS ? RELAYS.status : 'none';
 }
 
 /**

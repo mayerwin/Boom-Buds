@@ -52,8 +52,9 @@ with trigger bombs the gamepad's A still drops one at once and B sets it off; th
 once, and with trigger bombs a short OK drops one when let go while a long OK (the special) sets it off; every effect and voice is preloaded in `SoundPool` and the bombs play there (no Web
 Audio fallback); Back pauses (the simulation stops), Back resumes; between two rounds (a draw) Back asks whether to leave the
 match, Back again stays and OK plays the next round; Quit returns to the lobby at once (the record says how many
-milliseconds that took) and the curtain over the way back goes; the TURN credentials API answered at start-up (recorded,
-when the build has one); Back returns to the main screen and, there, leaves the app; the WebView covers the whole output and the game canvas has one pixel per
+milliseconds that took) and the curtain over the way back goes; nothing asked the TURN credentials API until then;
+Network Game asks it and checks the relay (the answer, the check and any note on the screen are recorded, when the
+build has a credentials API); Back returns to the main screen and, there, leaves the app; the WebView covers the whole output and the game canvas has one pixel per
 physical pixel; no page errors. Screenshots and a JSON record go to `app/build/qa/<serial>/`.
 
 `emulator-keyboard.cjs` plays with a virtual keyboard: the menus follow the arrows and Enter, the arrow keys and

@@ -6,8 +6,9 @@
 //   whose removal gives the whole pad back); a round starts; both move their bombers, the remote drops a bomb;
 //   the effects play through native SoundPool;
 //   Back pauses (the round stops), Back resumes; between rounds Back asks whether to leave the match and Back
-//   again stays; quitting returns to the lobby at once; Back leaves the menus and,
-//   on the main screen, the app; the game canvas is drawn at the WebView's full physical resolution.
+//   again stays; quitting returns to the lobby at once; a local game asks nothing of the TURN relays, Network
+//   Game asks for them and checks them; Back leaves the menus and, on the main screen, the app; the game canvas
+//   is drawn at the WebView's full physical resolution.
 // Usage: BB_QA_SERIAL=emulator-5556 node android/tests/emulator-smoke.cjs [apk]
 // Evidence (screenshots, emulator-smoke.json) goes to android/app/build/qa/<serial>/.
 'use strict';
@@ -244,9 +245,9 @@ async function main() {
     await check('quit', { backInMs });
     for (let i = 0; i < 20 && (await app.evaluate('!!document.getElementById("curtain-root")')); i++) await sleep(250);
     assert.equal(await app.evaluate('!!document.getElementById("curtain-root")'), false, 'the curtain goes once the menus are up');
-    // the TURN relays of network games, asked for at start-up (when the build has a credentials API: VITE_TURN_API)
-    const relays = await app.evaluate(`performance.getEntriesByType('resource').filter((e)=>e.name.includes('turn/credentials')).map((e)=>e.responseStatus)`);
-    await check('relay credentials', { relays });
+    // a local game asks nothing of the TURN relays' credentials API (only Network Game does)
+    const credentials = `performance.getEntriesByType('resource').filter((e)=>e.name.includes('turn/credentials')).map((e)=>e.responseStatus)`;
+    assert.deepEqual(await app.evaluate(credentials), [], 'no relay credentials asked for before Network Game');
 
     // the canvas is drawn at the WebView's physical resolution
     const display = JSON.parse(await app.evaluate('AndroidHost.getDisplayInfo()'));
@@ -262,6 +263,17 @@ async function main() {
 
     // Back: to the main screen, then out of the app
     await pressUntil(REMOTE, 'BACK', (s) => s.screen === 'home', 'Back returns to the main screen');
+    // Network Game asks for the TURN relays and checks them (when the build has a credentials API: VITE_TURN_API);
+    // a relay in trouble would show a note there
+    await app.evaluate(`[...document.querySelectorAll('#menu-root button')].find(b=>/Network Game/.test(b.textContent)).click()`);
+    await app.waitFor((s) => s.heading === 'Network Game', 'Expected Network Game');
+    const relayState = `document.querySelector('#menu-root .screen[data-relay]')?.dataset.relay`;
+    let relay = await app.evaluate(relayState);
+    for (let i = 0; i < 80 && relay === 'checking'; i++, relay = await app.evaluate(relayState)) await sleep(250);
+    const note = await app.evaluate(`document.querySelector('#menu-root .relay-note')?.textContent||''`);
+    await check('relay', { relay, credentials: await app.evaluate(credentials), note });
+    await shot('6-network');
+    await pressUntil(REMOTE, 'BACK', (s) => s.screen === 'home', 'Back leaves Network Game');
     // the privacy policy, in the app (Options), and Back closes its dialog
     await app.evaluate(`[...document.querySelectorAll('#menu-root button')].find(b=>b.textContent.trim()==='Options').click()`);
     await app.waitFor((s) => s.screen === 'options', 'Expected Options');
@@ -270,7 +282,7 @@ async function main() {
     const policy = () => app.evaluate(`document.querySelector('.modal-wrap')?.innerText||''`);
     for (let i = 0; i < 30 && !/Network games/.test(await policy()); i++) await sleep(150);
     assert.match(await policy(), /Network games/, 'the privacy policy shows in the app');
-    await shot('5-privacy');
+    await shot('7-privacy');
     await input.key(REMOTE, 'BACK');
     await sleep(500);
     assert.equal(await policy(), '', 'Back closes the dialog');

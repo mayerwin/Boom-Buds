@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { useMenu } from './ctx.ts';
 import { CodeInput, Modal } from './ui.tsx';
 import { NetSession, type JoinOutcome } from '../net/netSession.ts';
+import { checkRelays, relayStatus, type RelayStatus } from '../net/mesh.ts';
 import { normalizeRoomCode } from '../net/room.ts';
 import { LanScanner, lanKeys, type LanGame } from '../net/lan.ts';
 import { BotCard, ColorPicker, ControlPicker, PlayerCard, TeamBalance, joinHint, useDeviceChanges, useJoinListener } from './players.tsx';
@@ -23,7 +24,13 @@ const REASONS: Record<Exclude<JoinOutcome, 'ok'>, string> = {
   started: 'This game is already playing; try again when the match is over',
   version: 'This game runs another version of Boom Buds: both should reload the page',
   kicked: 'The host removed you from this game',
-  failed: 'Could not connect to that game (network blocked?)',
+  failed: "Could not connect to that game: the networks may block it. The same Wi-Fi, or a phone's hotspot, usually works",
+};
+
+/** The relay server's trouble, shown small on the Network Game screen (network games still work without it). */
+const RELAY_NOTES: Partial<Record<RelayStatus, string>> = {
+  unavailable: 'Relay server unavailable: players on networks that block direct connections may not get in.',
+  limit: "Relay server's monthly allowance used up: players on networks that block direct connections may not get in.",
 };
 
 export function defaultName(g: Game): string {
@@ -55,6 +62,7 @@ export function NetworkGame(props: { enterLobby: (net: NetSession) => void }): J
   const [games, setGames] = useState<LanGame[]>([]);
   const [busy, setBusy] = useState('');
   const [pics, setPics] = useState<Record<number, string>>({});
+  const [relay, setRelay] = useState(relayStatus);
   const netRef = useRef(net);
   netRef.current = net;
   // the session being opened: Create and Join can be pressed before the meeting service answers
@@ -97,6 +105,15 @@ export function NetworkGame(props: { enterLobby: (net: NetSession) => void }): J
     return () => {
       live = false;
       scanner?.stop();
+    };
+  }, [status === 'offline']);
+
+  // the TURN relays: asked for now (local games ask nothing), checked again on Retry
+  useEffect(() => {
+    let live = true;
+    void checkRelays().then((r) => live && setRelay(r));
+    return () => {
+      live = false;
     };
   }, [status === 'offline']);
 
@@ -157,7 +174,7 @@ export function NetworkGame(props: { enterLobby: (net: NetSession) => void }): J
   };
 
   return (
-    <div class="screen">
+    <div class="screen" data-relay={relay}>
       <div class="topbar">
         <button class="btn" onClick={leave}>◀ Back</button>
         <h1>Network Game</h1>
@@ -208,6 +225,7 @@ export function NetworkGame(props: { enterLobby: (net: NetSession) => void }): J
           <h2>Join with a code</h2>
           <CodeInput onSubmit={(c) => void join(c)} />
           <div class="status">{busy.startsWith('join') ? 'Joining…' : ''}</div>
+          {RELAY_NOTES[relay] && <div class="small muted relay-note">⚠ {RELAY_NOTES[relay]}</div>}
         </div>
       </div>
     </div>
