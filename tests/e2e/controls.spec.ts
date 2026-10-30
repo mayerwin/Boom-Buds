@@ -153,7 +153,7 @@ test('gamepads: hold a button to join, a short press stays a menu press, two pla
   await expect(cards(page)).toHaveCount(3);
   expect(await stored(page)).toEqual(['kb-arrows', `padL:0:${XBOX}`, `padR:0:${XBOX}`]);
   await expect(cards(page).nth(1)).toContainText('LB bomb');
-  await expect(cards(page).nth(2)).toContainText('X or RT special');
+  await expect(cards(page).nth(2)).toContainText('B or RT special');
   // a round: the left side moves with the d-pad, the right side with the right stick
   await page.getByRole('button', { name: 'Start ▶' }).click();
   await expect.poll(() => game<boolean>(page, '!!g.runner'), { timeout: 10_000 }).toBe(true);
@@ -176,14 +176,14 @@ test('gamepads: hold a button to join, a short press stays a menu press, two pla
   expect(await moves(left, (on, dir) => button(page, pad, 12 + dir, on))).toBe(true);
   const dirs = [[1, 0], [0, 1], [-1, 0], [0, -1]];
   expect(await moves(right, (on, dir) => stick(page, pad, on ? [0, 0, dirs[dir][0], dirs[dir][1]] : [0, 0, 0, 0]))).toBe(true);
-  // the right half drops its bomb with A and uses the special with X (not the triggers, which it may not reach)
+  // the right half drops its bomb with A and uses the special with B (not the triggers, which it may not reach)
   const bits = (i: number) => game<number>(page, `g.runner.inputs[${i}]`);
   await button(page, pad, 0, true);
   await expect.poll(() => bits(right)).toBe(16);
   await button(page, pad, 0, false);
-  await button(page, pad, 2, true);
+  await button(page, pad, 1, true);
   await expect.poll(() => bits(right)).toBe(32);
-  await button(page, pad, 2, false);
+  await button(page, pad, 1, false);
   await expect.poll(() => bits(right)).toBe(0);
   // Start pauses; the right stick moves in the pause menu; B resumes
   await tap(page, pad, 9);

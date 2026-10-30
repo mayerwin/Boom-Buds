@@ -25,7 +25,7 @@ Network games work as on the web, with the website's players too.
 | --- | --- | --- | --- | --- | --- |
 | Gamepad (Xbox, PlayStation, Switch Pro and other Bluetooth pads) | stick or d-pad | A | B | Start | d-pad or a stick, A selects, B goes back |
 | Gamepad shared by two, left side | left stick or d-pad | LB | LT | Select | |
-| Gamepad shared by two, right side | right stick | A or RB | X or RT | Start | |
+| Gamepad shared by two, right side | right stick | A or RB | B or RT | Start | |
 | TV remote | arrows | OK | hold OK | Back | arrows, OK selects, Back goes back |
 | Keyboard / mouse | as on the website | | | Esc | as on the website |
 
@@ -37,8 +37,8 @@ accident. **Add player** lists every set, with a drawing of the controller and t
 the **Controls** menu does. The line-up is remembered by gamepad name: a player whose gamepad is off is hidden
 until it is back. In the menus the arrows always move to the nearest control (and scroll a screen that is taller
 than the television, such as Controls); OK goes into a player's card (Back comes out) or starts changing a
-setting (← → change it, OK is done). Back on the main screen leaves the app. Pair Bluetooth controllers in the
-TV's settings first.
+setting (← → change it, OK is done). During a round Back pauses; on the scores between rounds it asks whether to
+leave the match. Back on the main screen leaves the app. Pair Bluetooth controllers in the TV's settings first.
 
 Leaving a match goes straight back to the menus, under a short curtain. If the game ever feels slow to answer,
 **Options → Display → Frame rate and input delay** shows what this machine takes: the frames a second it draws,
@@ -102,5 +102,9 @@ Requirements: Node.js 22+ (the scripts run `npm ci` when `node_modules` is missi
 Studio's is found automatically) and the Android SDK (platform 36). Paths can be set in
 `publishing/local-config.ps1` (see the `.example`). From `android/`, `gradlew.bat assembleSideloadDebug`
 builds a debug APK.
+
+Network games use the website's TURN relays (for networks that block direct connections): the scripts take the
+repository variable `TURN_API` with the GitHub CLI (`gh variable get TURN_API`) into `VITE_TURN_API` unless that is
+set already, and warn when neither is there. A Gradle build run by hand needs `VITE_TURN_API` in its environment.
 
 Testing: [TESTING.md](TESTING.md).

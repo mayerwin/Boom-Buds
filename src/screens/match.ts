@@ -26,6 +26,7 @@ import { cleanLevels } from '../app/settings.ts';
 import { classicChoices, classicInput, idsClash, keyboardsHere, slotSetId } from '../app/controls.ts';
 import { originalMouse, originalWaits } from '../app/modes.ts';
 import { lineupFromSlots, savedLineupSlots, schemeTeams, storeLineup } from '../menu/lineup.ts';
+import { openPauseMenu, type PauseMenu } from '../menu/pause.ts';
 
 /** power-up type -> "power <name>" sequence */
 const POWER_SEQ = ['bomb', 'flame', 'disease', 'kicker', 'skate', 'punch', 'grab', 'spooge', 'goldflame', 'trigger', 'jelly', 'disease3', 'random', 'clog'];
@@ -1021,39 +1022,79 @@ async function waitScreen(g: Game, draw: () => void, key: number): Promise<void>
   const net = session.net;
   const start = performance.now();
   ui.flushInput();
-  for (;;) {
-    if (net && session.netMode === 2) {
-      if (net.hostLost) {
-        await g.dlg.msgboxOk(ui.msg(95), ui.msg(111), ui.col.darkRed, ui.col.yellow);
-        session.matchEnd = 2;
-        return;
+  // Esc (B on a gamepad, Back on a TV remote) leaves the match: at once in 1997 mode, as in the original; with the
+  // modern menus after asking, as a round's pause menu does (one press must not throw a match away)
+  let menu: PauseMenu | null = null;
+  let choice = null as 'stay' | 'quit' | null;
+  const closeMenu = () => {
+    if (!menu) return;
+    menu.close();
+    menu = null;
+    g.app.input.suspended = false;
+    ui.flushInput();
+  };
+  const leave = () => {
+    session.matchEnd = 2;
+    if (net?.role === 'host') net.broadcast({ t: 'abort' });
+    g.curtainToMenus();
+  };
+  const ask = (): PauseMenu => {
+    const [title, note, quit] = !net
+      ? ['Quit the match?', '', 'Quit the match']
+      : net.role === 'host'
+        ? ['End the match?', 'It ends for everyone.', 'End the match for everyone']
+        : ['Leave the match?', '', 'Leave the match'];
+    g.app.input.suspended = true;
+    const choices = [{ label: 'Keep playing', value: 'stay' as const }, { label: quit, value: 'quit' as const, danger: true }];
+    return openPauseMenu(title, note, choices, (c) => (choice = c), 0, 300);
+  };
+  try {
+    for (;;) {
+      if (net && session.netMode === 2) {
+        if (net.hostLost) {
+          closeMenu();
+          await g.dlg.msgboxOk(ui.msg(95), ui.msg(111), ui.col.darkRed, ui.col.yellow);
+          session.matchEnd = 2;
+          return;
+        }
+        if (net.aborted) {
+          session.matchEnd = 2;
+          return;
+        }
+        if (net.take('key').some(({ msg }) => msg.k === key)) {
+          ui.menuExit();
+          return;
+        }
       }
-      if (net.aborted) {
-        session.matchEnd = 2;
-        return;
+      draw();
+      let k = await ui.flip();
+      if (choice) {
+        const c = choice;
+        choice = null;
+        closeMenu();
+        if (c === 'quit') return leave();
+        continue;
       }
-      if (net.take('key').some(({ msg }) => msg.k === key)) {
-        ui.menuExit();
-        return;
+      // (the question reads the keys and the gamepads itself)
+      if (menu) continue;
+      if (isRealKey(k)) ui.letter();
+      if ((!session.hasHumans() || session.autoContinue) && performance.now() > start + 6000) k = K.ENTER;
+      if (k === K.ESC) {
+        if (!g.modernAfterMatch()) return leave();
+        menu = ask();
+        continue;
+      }
+      if (k === K.ENTER || k === K.SPACE || k === K.MOUSE) {
+        if (session.netMode === 2) ui.refuse();
+        else if (start + ui.minWaitSecs() * 1000 < performance.now()) {
+          ui.menuExit();
+          net?.broadcast({ t: 'key', k: key });
+          return;
+        }
       }
     }
-    draw();
-    let k = await ui.flip();
-    if (isRealKey(k)) ui.letter();
-    if ((!session.hasHumans() || session.autoContinue) && performance.now() > start + 6000) k = K.ENTER;
-    if (k === K.ESC) {
-      session.matchEnd = 2;
-      if (net?.role === 'host') net.broadcast({ t: 'abort' });
-      return;
-    }
-    if (k === K.ENTER || k === K.SPACE || k === K.MOUSE) {
-      if (session.netMode === 2) ui.refuse();
-      else if (start + ui.minWaitSecs() * 1000 < performance.now()) {
-        ui.menuExit();
-        net?.broadcast({ t: 'key', k: key });
-        return;
-      }
-    }
+  } finally {
+    closeMenu();
   }
 }
 

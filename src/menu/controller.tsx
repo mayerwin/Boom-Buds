@@ -42,14 +42,14 @@ export function KeyCluster(props: { keys: (string | undefined)[]; lit?: Set<stri
 /** Which parts of a gamepad a whole pad, or one half of it, plays with. */
 function padParts(half?: PadHalf): Parts {
   if (half === 'left') return { stick: 'move', dpad: 'move', LB: 'bomb', LT: 'special' };
-  if (half === 'right') return { rstick: 'move', A: 'bomb', RB: 'bomb', X: 'special', RT: 'special' };
+  if (half === 'right') return { rstick: 'move', A: 'bomb', RB: 'bomb', B: 'special', RT: 'special' };
   return { stick: 'move', dpad: 'move', rstick: 'move', A: 'bomb', X: 'bomb', B: 'special', Y: 'special' };
 }
 
 /** What the legend says under the drawing, by role. */
 function padLegend(half?: PadHalf): Record<Role, string> {
   if (half === 'left') return { move: 'left stick or d-pad', bomb: 'LB', special: 'LT' };
-  if (half === 'right') return { move: 'right stick', bomb: 'A or RB', special: 'X or RT' };
+  if (half === 'right') return { move: 'right stick', bomb: 'A or RB', special: 'B or RT' };
   return { move: 'either stick or the d-pad', bomb: 'A or X', special: 'B or Y' };
 }
 

@@ -14,6 +14,19 @@ function trackErrors(page: Page): string[] {
 const inRound = (p: Page) => p.evaluate(() => !!(window as unknown as { __boombuds: { game: { runner: unknown } } }).__boombuds.game.runner);
 const tick = (p: Page) => p.evaluate(() => (window as unknown as { __boombuds: { game: { runner: { s: { tick: number } } | null } } }).__boombuds.game.runner?.s.tick ?? -1);
 const menuOpen = (p: Page) => p.evaluate(() => !!document.getElementById('menu-root')?.classList.contains('open'));
+/** a match is on, on one of the screens between two rounds */
+const betweenRounds = (p: Page) =>
+  p.evaluate(() => {
+    const r = (window as unknown as { __boombuds: { game: { runner: { inRound: boolean } | null } } }).__boombuds.game.runner;
+    return !!r && !r.inRound;
+  });
+
+async function key(page: Page, k: string, wait = 120): Promise<void> {
+  await page.keyboard.down(k);
+  await page.waitForTimeout(40);
+  await page.keyboard.up(k);
+  await page.waitForTimeout(wait);
+}
 
 test('local game: join by key, play, pause, quit', async ({ page }) => {
   const errors = trackErrors(page);
@@ -43,6 +56,54 @@ test('local game: join by key, play, pause, quit', async ({ page }) => {
   await page.getByRole('button', { name: 'Quit the match' }).click();
   await expect.poll(() => menuOpen(page), { timeout: 10_000 }).toBe(true);
   await expect(page.getByRole('heading', { name: 'Local Game' })).toBeVisible();
+  // the curtain over the way back goes once the menus are up
+  await expect(page.locator('#curtain-root')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test('between rounds: Esc asks before the match is left (Back on a TV remote is Esc there)', async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Local Game' }).click();
+  await expect(page.getByText('Player 1')).toBeVisible();
+  await page.getByRole('button', { name: /Add computer player/ }).click();
+  await page.getByRole('button', { name: 'Start ▶' }).click();
+  await expect.poll(() => inRound(page), { timeout: 10_000 }).toBe(true);
+  // a draw from the pause menu: the draw screen, between two rounds
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: 'End this round (draw)' }).click();
+  await expect.poll(() => betweenRounds(page), { timeout: 10_000 }).toBe(true);
+  await page.waitForTimeout(1500);
+  await key(page, 'Escape');
+  await expect(page.locator('#pause-root.open h2')).toHaveText('Quit the match?');
+  // Esc again keeps playing: the match goes on
+  await key(page, 'Escape', 400);
+  await expect(page.locator('#pause-root.open')).toHaveCount(0);
+  expect(await betweenRounds(page)).toBe(true);
+  expect(await menuOpen(page)).toBe(false);
+  await key(page, 'Escape');
+  await page.getByRole('button', { name: 'Quit the match' }).click();
+  await expect.poll(() => menuOpen(page), { timeout: 10_000 }).toBe(true);
+  await expect(page.locator('#curtain-root')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test('1997 mode entered from the modern menus: leaving a match leaves nothing over the original menus', async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Options' }).click();
+  await page.getByRole('button', { name: "Play like it's 1997" }).click();
+  await page.waitForTimeout(2500);
+  await key(page, 'Enter', 800);
+  await key(page, 'Enter', 1500); // Start Game -> player setup
+  await key(page, 'Enter', 1500); // -> options
+  await key(page, 'Enter', 2500); // -> round
+  expect(await inRound(page)).toBe(true);
+  // Esc: the 1997 box; 3: "Quit the match"
+  await key(page, 'Escape', 400);
+  await key(page, 'Digit3', 1500);
+  expect(await inRound(page)).toBe(false);
+  await expect(page.locator('#curtain-root')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 

@@ -22,18 +22,107 @@ export interface PeerConn {
   away: boolean;
 }
 
+/** Public STUN servers: they find each machine's public address, so that connections work across the internet. */
+const STUN: RTCIceServer = { urls: ['stun:stun.cloudflare.com:3478', 'stun:stun.l.google.com:19302'] };
+/** how long a relay list from the credentials API is used before it is asked for again */
+export const RELAY_TTL_MS = 30 * 60_000;
+/** how long the credentials API gets to answer (a connection made meanwhile waits for it) */
+export const RELAY_TIMEOUT_MS = 2500;
+
+/** The servers of a credentials API's answer: an array of RTCIceServer, or `{ iceServers: [...] }`. */
+export function parseIceServers(data: unknown): RTCIceServer[] {
+  const list = Array.isArray(data) ? data : (data as { iceServers?: unknown } | null)?.iceServers;
+  if (!Array.isArray(list)) return [];
+  const out: RTCIceServer[] = [];
+  for (const s of list as Record<string, unknown>[]) {
+    const urls = typeof s?.urls === 'string' ? [s.urls] : Array.isArray(s?.urls) ? s.urls.filter((u): u is string => typeof u === 'string') : [];
+    if (!urls.length) continue;
+    const server: RTCIceServer = { urls };
+    if (typeof s.username === 'string') server.username = s.username;
+    if (typeof s.credential === 'string') server.credential = s.credential;
+    out.push(server);
+  }
+  return out;
+}
+
+type Fetch = (url: string, init: RequestInit) => Promise<Response>;
+
 /**
- * Public STUN servers find each machine's public address so that connections work across the internet;
- * on a LAN the machines connect directly. A TURN relay (for networks where no direct path exists, e.g. some
- * mobile carriers) can be configured at build time: VITE_TURN_URLS (comma separated), VITE_TURN_USERNAME,
- * VITE_TURN_CREDENTIAL.
+ * TURN relays from a credentials API (Metered's: a GET returns the STUN and TURN servers with their
+ * credentials). The list is kept for 30 minutes. A request that fails or takes longer than 2.5 s gives no relays
+ * this time and is not kept: the next connection asks again.
  */
-function iceServers(): RTCIceServer[] {
-  const list: RTCIceServer[] = [{ urls: ['stun:stun.cloudflare.com:3478', 'stun:stun.l.google.com:19302'] }];
-  const env = import.meta.env ?? {};
+export class RelayList {
+  private servers: RTCIceServer[] | null = null;
+  private at = 0;
+  private pending: Promise<RTCIceServer[]> | null = null;
+  private readonly url: string;
+  private readonly get: Fetch;
+  private readonly clock: () => number;
+
+  constructor(url: string, get: Fetch = (u, init) => fetch(u, init), clock: () => number = () => Date.now()) {
+    this.url = url;
+    this.get = get;
+    this.clock = clock;
+  }
+
+  /** The relays: the kept list while it is fresh, else the answer to the request under way (or a new one). */
+  load(): Promise<RTCIceServer[]> {
+    if (this.servers && this.clock() - this.at < RELAY_TTL_MS) return Promise.resolve(this.servers);
+    if (!this.pending) this.pending = this.request().finally(() => (this.pending = null));
+    return this.pending;
+  }
+
+  private async request(): Promise<RTCIceServer[]> {
+    const abort = new AbortController();
+    const timer = setTimeout(() => abort.abort(), RELAY_TIMEOUT_MS);
+    try {
+      const r = await this.get(this.url, { cache: 'no-store', signal: abort.signal });
+      if (!r.ok) return [];
+      const list = parseIceServers(await r.json());
+      if (list.length) {
+        this.servers = list;
+        this.at = this.clock();
+      }
+      return list;
+    } catch {
+      return [];
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+}
+
+const env = import.meta.env ?? {};
+const relayApi = String(env.VITE_TURN_API ?? '').trim();
+const RELAYS = relayApi && typeof fetch === 'function' ? new RelayList(relayApi) : null;
+
+/** Ask the credentials API now (at start-up), so that the first connection finds the relays ready. */
+export function prefetchIceServers(): void {
+  void RELAYS?.load();
+}
+
+/**
+ * The servers a connection tries: public STUN servers (on a LAN the machines connect directly), then TURN relays
+ * for networks where no direct path exists (mobile carriers sharing one address between many phones, guest
+ * Wi-Fi, company and school networks). The relays are set at build time: a credentials API (VITE_TURN_API,
+ * recommended), or fixed ones (VITE_TURN_URLS, comma separated, with VITE_TURN_USERNAME and VITE_TURN_CREDENTIAL).
+ */
+export async function iceServers(relays: RelayList | null = RELAYS): Promise<RTCIceServer[]> {
+  const list: RTCIceServer[] = [STUN];
   const turn = String(env.VITE_TURN_URLS ?? '').split(',').map((u) => u.trim()).filter(Boolean);
   if (turn.length) list.push({ urls: turn, username: env.VITE_TURN_USERNAME, credential: env.VITE_TURN_CREDENTIAL });
+  if (relays) list.push(...(await relays.load()));
   return list;
+}
+
+/**
+ * Relayed paths only (`?nodirect` in the address, or `window.boombudsNoDirect = true` before connecting): to
+ * check that the TURN relay works. Without a relay, no connection can be made this way.
+ */
+function relayOnly(): boolean {
+  if (typeof window === 'undefined') return false;
+  return (window as { boombudsNoDirect?: boolean }).boombudsNoDirect === true || new URLSearchParams(location.search).has('nodirect');
 }
 
 /**
@@ -74,16 +163,32 @@ export class Mesh {
 
   /** Open a connection to `id`; the caller is the offerer. */
   async connect(id: number, name: string): Promise<void> {
-    const p = this.create(id, name);
+    const servers = await this.serversFor(id);
+    if (!servers) return;
+    const p = this.create(id, name, servers);
     const offer = await p.pc.createOffer();
     await p.pc.setLocalDescription(offer);
     this.sig.signal(id, { sdp: p.pc.localDescription });
   }
 
-  private create(id: number, name: string): PeerConn {
+  /** connections waiting for the relay list (normally there already), by peer: dropping the peer cancels its own */
+  private attempts = new Map<number, number>();
+  private attemptSeq = 0;
+
+  /** The servers for a new connection to `id`; null when the peer was dropped meanwhile. */
+  private async serversFor(id: number): Promise<RTCIceServer[] | null> {
+    const n = ++this.attemptSeq;
+    this.attempts.set(id, n);
+    const servers = await iceServers();
+    if (this.attempts.get(id) !== n) return null;
+    this.attempts.delete(id);
+    return servers;
+  }
+
+  private create(id: number, name: string, iceServers: RTCIceServer[]): PeerConn {
     const existing = this.peers.get(id);
     if (existing) return existing;
-    const pc = new RTCPeerConnection({ iceServers: iceServers() });
+    const pc = new RTCPeerConnection({ iceServers, iceTransportPolicy: relayOnly() ? 'relay' : 'all' });
     const ctl = pc.createDataChannel('ctl', { negotiated: true, id: 0, ordered: true });
     const inp = pc.createDataChannel('inp', { negotiated: true, id: 1, ordered: false, maxRetransmits: 0 });
     inp.binaryType = 'arraybuffer';
@@ -127,7 +232,11 @@ export class Mesh {
   private async onSignal(from: number, data: SignalData): Promise<void> {
     let p = this.peers.get(from);
     if (data.sdp) {
-      if (!p) p = this.create(from, 'peer');
+      if (!p) {
+        const servers = await this.serversFor(from);
+        if (!servers) return;
+        p = this.create(from, 'peer', servers);
+      }
       await p.pc.setRemoteDescription(data.sdp);
       if (data.sdp.type === 'offer') {
         const answer = await p.pc.createAnswer();
@@ -205,13 +314,22 @@ export class Mesh {
   drop(id: number, silent = false, bye = false): void {
     const p = this.peers.get(id);
     this.pendingIce.delete(id);
+    this.attempts.delete(id);
     if (!p) return;
     this.peers.delete(id);
     try { p.pc.close(); } catch { /* ignore */ }
     if (!silent) this.onPeerClosed(id, bye);
   }
 
+  /** Close every connection, and forget those still being prepared, without the onPeerClosed notifications. */
+  dropAll(): void {
+    this.attempts.clear();
+    this.pendingIce.clear();
+    for (const id of [...this.peers.keys()]) this.drop(id, true);
+  }
+
   close(): void {
+    this.attempts.clear();
     for (const id of [...this.peers.keys()]) this.drop(id);
     for (const u of this.unsub) u();
   }

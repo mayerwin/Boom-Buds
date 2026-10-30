@@ -41,7 +41,8 @@ gamepads and touch controls, online play without a server, and computer players 
   your own), two on each USB or Bluetooth gamepad (one on each half), the mouse, or on-screen touch controls (two
   players per phone or tablet). Players join by pressing their bomb key or holding a gamepad button.
 - **Network play with zero setup.** Games on your network show up by themselves; friends elsewhere join with a
-  6-character room code or a link. Browsers connect directly to each other, and rollback netcode keeps a LAN
+  6-character room code or a link. Browsers connect directly to each other (through a relay on networks that
+  block that, such as phones on 4G or guest Wi-Fi), and rollback netcode keeps a LAN
   game at about one frame of input delay, and internet games at full speed and in sync (tested with up to
   100 ms each way). The lobby has a chat; the host decides the rules, and the others' wishes show up there as
   requests the host grants with a click.
@@ -92,7 +93,7 @@ which is why there are two steps; to invite someone, send the group's page: it l
 |---|---|---|---|---|
 | Gamepad | stick or d-pad | A | B | Start |
 | Gamepad shared by two: left side | left stick or d-pad | LB | LT | Select |
-| Gamepad shared by two: right side | right stick | A or RB | X or RT | Start |
+| Gamepad shared by two: right side | right stick | A or RB | B or RT | Start |
 | TV remote | arrows | OK | hold OK (when it has a use) | Back |
 | Keyboard | arrows, or E S D F | <kbd>.</kbd> or <kbd>A</kbd> | <kbd>,</kbd> or <kbd>Q</kbd> | Esc |
 
@@ -102,8 +103,8 @@ two players — whoever had it keeps the left half, the newcomer takes the right
 a player whose gamepad is off disappears from it and comes back with the gamepad. Not sure which button LB or LT
 is? The controls button on a player's card (and the **Controls** menu) draws the controller with the buttons that
 player uses marked. In the menus, the arrows always go to the nearest control; OK (A) goes into a player's card
-or starts changing a setting, then ← → change it and OK is done; Back (B) comes out. Back on the main screen
-leaves the app. Developers can build and install it themselves: [android/README.md](android/README.md).
+or starts changing a setting, then ← → change it and OK is done; Back (B) comes out. During a round Back pauses;
+between rounds it asks whether to leave the match. Back on the main screen leaves the app. Developers can build and install it themselves: [android/README.md](android/README.md).
 
 ## Run it on your computer
 
@@ -151,7 +152,7 @@ player to reach the number of wins set for the match takes it.
 | Numpad | <kbd>8</kbd> <kbd>4</kbd> <kbd>5</kbd> <kbd>6</kbd> | <kbd>0</kbd> | <kbd>Enter</kbd> |
 | Gamepad | stick or d-pad | A | B (Start pauses) |
 | Gamepad, left half (two players on one) | left stick or d-pad | LB | LT |
-| Gamepad, right half | right stick | A or RB | X or RT |
+| Gamepad, right half | right stick | A or RB | B or RT |
 | Mouse | point where to walk | left button | right button |
 | Touch screen | on-screen stick | A | B |
 
@@ -215,10 +216,18 @@ data channels: inputs travel unordered and unacknowledged, with redundancy, and 
 deterministic simulation with rollback. Nobody runs a server or opens a port. Games on your network are found
 through the public address your router shares, which each browser learns from a public STUN server.
 
-A few networks, such as some mobile carriers and strict company firewalls, block direct connections between
-browsers. A TURN relay gets around that. The build can be given one through `VITE_TURN_URLS`,
-`VITE_TURN_USERNAME` and `VITE_TURN_CREDENTIAL` (or the repository variables `TURN_URLS`, `TURN_USERNAME` and
-the secret `TURN_CREDENTIAL` in the deployment workflow), for example from a free Metered or Cloudflare account.
+Some networks block direct connections between browsers: a phone on 4G behind its carrier's shared address,
+guest Wi-Fi, some home routers, company and school networks. There the game goes through a TURN relay. The
+recommended way to give the build one is a credentials API such as Metered's: put its URL
+(`https://<app>.metered.live/api/v1/turn/credentials?apiKey=…`) in the repository variable `TURN_API`, which the
+deployment workflow passes to the build as `VITE_TURN_API` (set `VITE_TURN_API` yourself for other builds, such as
+the TV app's). The game asks it for the relays once at start-up, before anyone connects, keeps the answer for 30
+minutes, and connects with the STUN servers alone when it gets no answer within 2.5 s (the next connection asks
+again). The key is in the published game, as any TURN credential used by a browser is: use a key made for this,
+with a monthly limit. Fixed relays work too: `VITE_TURN_URLS`, `VITE_TURN_USERNAME` and `VITE_TURN_CREDENTIAL` (the
+repository variables `TURN_URLS` and `TURN_USERNAME` and the secret `TURN_CREDENTIAL`). To check that the relay
+really carries a game, give both devices `?nodirect`: they then connect only through relays, so without one they
+cannot connect at all.
 
 </details>
 
@@ -252,7 +261,8 @@ npm run build       # production build in dist/
 URL parameters: `?diag` shows the frame rate and the delay from a press to a drawn frame, `?fps` the frame rate alone; `?bench=N&level=L&ai=S` runs endless demo rounds with N computer
 players; `?join=CODE` joins a network game; `?relay=local` or `?relay=public` chooses where network games meet;
 `?netsim=50,10,1` delays this browser's network messages (50 ms, plus up to 10 ms at random) and loses 1 % of its
-input packets; `?1997` starts in 1997 mode.
+input packets; `?nodirect` connects to other devices only through a TURN relay (or `window.boombudsNoDirect = true`
+before connecting); `?1997` starts in 1997 mode.
 
 </details>
 

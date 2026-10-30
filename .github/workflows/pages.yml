@@ -2,8 +2,10 @@
 # GitHub Actions). The game data (public/data) is in the repository: it is made from the original game with
 # `npm run assets`. Every file of a build has content-hashed URLs and the build id is in version.json, so
 # players get a new release at once (tools/build/versioning.ts, src/app/update.ts).
-# Optional TURN relay for players whose networks block direct connections: repository variables TURN_URLS
-# (comma separated) and TURN_USERNAME, secret TURN_CREDENTIAL.
+# TURN relay for players whose networks block direct connections: the repository variable TURN_API, a credentials
+# API URL (Metered's /api/v1/turn/credentials?apiKey=...; it ends up in the published game, as any browser-side
+# TURN credential does), or fixed relays: repository variables TURN_URLS (comma separated) and TURN_USERNAME,
+# secret TURN_CREDENTIAL.
 name: Deploy to GitHub Pages
 
 on:
@@ -36,6 +38,7 @@ jobs:
       - run: npm test
       - run: npm run build
         env:
+          VITE_TURN_API: ${{ vars.TURN_API }}
           VITE_TURN_URLS: ${{ vars.TURN_URLS }}
           VITE_TURN_USERNAME: ${{ vars.TURN_USERNAME }}
           VITE_TURN_CREDENTIAL: ${{ secrets.TURN_CREDENTIAL }}

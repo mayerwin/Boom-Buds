@@ -5,10 +5,10 @@
 - `npm test` (repository root) includes `tests/tv.test.ts`: the controller adapter `tv/tv.js` (standard
   mapping of buttons, d-pad, hat, sticks and triggers; the right stick from Z / RZ, or RX / RY on gamepads
   without them; the remote's devices merged into one "TV remote" gamepad; quick taps kept until a display frame
-  has seen them; key repeats; Back meaning B in the menus and Start in a round; releasing everything when the
+  has seen them; key repeats; Back meaning B in the menus and between rounds, Start in a round; releasing everything when the
   app goes to the background; one snapshot per display frame; the events waiting in the app fetched when the
   game reads its controllers, acted on once each; a remote press the game saw only once taken for a tap), and
-  `tests/controls.test.ts` (gamepads known by name, halves of a gamepad — A / RB bomb and X / RT special on the
+  `tests/controls.test.ts` (gamepads known by name, halves of a gamepad — A / RB bomb and B / RT special on the
   right one — the 1997 menus' KEY n / JOY n L / R).
 - `npm run e2e` includes `tests/e2e/controls.spec.ts`, with made-up gamepads in Chrome: holding a button
   joins a gamepad whole, a short press is a menu press, a second hold shares it (left half, right half) while

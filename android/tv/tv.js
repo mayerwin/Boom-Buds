@@ -5,8 +5,8 @@
  * remote (window.BoomBudsAndroid.onInput, and whatever is still waiting is fetched by this adapter itself when
  * the game samples its controllers: AndroidHost.drainInput) and this adapter answers navigator.getGamepads(), in the
  * standard mapping the game already reads (A = bomb / select, B = special / back, Start = pause, d-pad and left
- * stick = move). The remote is one gamepad: its arrows move, OK is A, and Back is B in the menus and Start
- * during a round (it pauses). Keyboards and mice are left to the WebView. Loaded before the game (android/
+ * stick = move). The remote is one gamepad: its arrows move, OK is A, and Back is B in the menus and on the
+ * screens between rounds, and Start during a round (it pauses). Keyboards and mice are left to the WebView. Loaded before the game (android/
  * app/build.gradle adds it to the packaged index.html); the website never loads it.
  */
 (function (root, factory) {
@@ -198,11 +198,14 @@
     }
   }
 
-  /** What Back means now: B (back) in the menus, Start during a round (pause; in the pause menu, resume). */
+  /**
+   * What Back means now: B (back) in the menus and on the screens between rounds (where it asks whether to leave
+   * the match), Start during a round (pause; in the pause menu, or that question, it stays).
+   */
   function backButtonFor(doc, game) {
     if (doc.getElementById('pause-root')?.classList.contains('open')) return 9;
     if (doc.getElementById('menu-root')?.classList.contains('open')) return 1;
-    return game && game.runner ? 9 : 1;
+    return game && game.runner && game.runner.inRound ? 9 : 1;
   }
 
   /** Install in the TV app's page (the website never loads this file). */

@@ -160,6 +160,19 @@ export class Game {
   menus: Menus | null = null;
   private removeSplash: (() => void) | null = null;
 
+  /**
+   * The modern menus are where a match goes back to (not so in 1997 mode, even entered from them: the original's
+   * menus take over, and they need no curtain).
+   */
+  modernAfterMatch(): boolean {
+    return !!this.menus && !originalMenus(this.settings);
+  }
+
+  /** The player left the match: the curtain while the modern menus come up (src/menu/curtain.ts). */
+  curtainToMenus(): void {
+    if (this.modernAfterMatch()) showCurtain(this.session.net ? 'Back to the lobby…' : 'Back to the menu…');
+  }
+
   /** The modern menus (src/menu): they hand over to the original game screens for the matches. */
   private async modernMenus(): Promise<void> {
     this.app.touchAuto = false;

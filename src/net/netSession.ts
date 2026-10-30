@@ -350,7 +350,7 @@ export class NetSession {
     // the others learn at once that this machine left on purpose
     this.mesh.sayBye();
     this.room.leave();
-    for (const id of [...this.mesh.peers.keys()]) this.mesh.drop(id, true);
+    this.mesh.dropAll();
     this.members.length = 0;
     this.ctl = [];
     this.hostLost = false;

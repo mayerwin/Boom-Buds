@@ -28,6 +28,8 @@ tasks.register('buildWeb', Exec) {
     inputs.dir(new File(repoDir, 'src'))
     inputs.dir(new File(repoDir, 'public'))
     inputs.files(new File(repoDir, 'index.html'), new File(repoDir, 'package.json'), new File(repoDir, 'vite.config.ts'))
+    // the TURN credentials API goes into the game (android/publishing/_common.ps1 sets it): a new one builds again
+    inputs.property('turnApi', Integer.toHexString((System.getenv('VITE_TURN_API') ?: '').hashCode()))
     outputs.dir(webBuild)
 }
 tasks.register('syncGameAssets', Sync) {

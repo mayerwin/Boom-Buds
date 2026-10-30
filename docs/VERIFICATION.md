@@ -95,6 +95,12 @@ edge, trigger bombs), and the computer players exercise every rule in long tourn
   three accept WebSocket connections (EMQX, HiveMQ, Mosquitto); the game uses all three at once.
 * The shared credentials of the formerly free "Open Relay" TURN service no longer work (allocation refused,
   checked 2026-10); public STUN servers (Cloudflare, Google, Twilio) do.
+* TURN relay (2026-10-30): the build takes Metered's credentials API from the repository variable `TURN_API`
+  (`VITE_TURN_API`); its answer lists one STUN server and TURN on ports 80 and 443 over UDP and TCP, and TURNS on
+  443. Two Chrome browsers on the local relay with `?nodirect` (relayed paths only) connected through
+  `turn:global.relay.metered.ca:80` over UDP (relay candidates on both sides); without `?nodirect` the same two
+  took the direct host path, as before; with `?nodirect` and no relay configured they never connected (the join
+  gave up after 16 s). Joining took the same time with and without the relay list.
 
 ### Under latency
 

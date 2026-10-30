@@ -38,7 +38,7 @@ export function setDescription(s: ControlSet | null): string {
     case 'pad':
       if (isRemoteSet(s)) return 'Arrows move · OK bomb · hold OK special';
       if (s.half === 'left') return 'Left stick or d-pad · LB bomb · LT special';
-      if (s.half === 'right') return 'Right stick · A or RB bomb · X or RT special';
+      if (s.half === 'right') return 'Right stick · A or RB bomb · B or RT special';
       return 'Stick or d-pad · A bomb · B special';
     case 'mouse':
       return 'Point to walk · left bomb · right special';

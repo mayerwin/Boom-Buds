@@ -79,6 +79,15 @@ function Initialize-AndroidEnvironment {
         Push-Location $script:RepoDir
         try { Invoke-Checked 'npm.cmd' @('ci') } finally { Pop-Location }
     }
+    # The TURN relays of network games, as on the website: the repository variable TURN_API (a credentials API
+    # URL), unless VITE_TURN_API is set already. It ends up in the game, as it does on the website; never printed.
+    if (-not $env:VITE_TURN_API -and (Get-Command gh -ErrorAction SilentlyContinue)) {
+        Push-Location $script:RepoDir
+        try { $api = (& gh variable get TURN_API 2>$null | Out-String).Trim() } catch { $api = '' } finally { Pop-Location }
+        if ($api) { $env:VITE_TURN_API = $api }
+    }
+    if ($env:VITE_TURN_API) { Write-Host 'TURN relays: from the credentials API (TURN_API)' }
+    else { Write-Warning 'No TURN_API (gh variable get TURN_API): network games get no relay on networks that block direct connections.' }
 }
 
 function Invoke-Checked([string]$FilePath, [string[]]$Arguments) {

@@ -3,10 +3,13 @@ import { Game } from './app/Game.ts';
 import { setupOrientationOverlay } from './engine/mobile.ts';
 import artUrl from './menu/art/home-bg.webp';
 import { watchForUpdates } from './app/update.ts';
+import { prefetchIceServers } from './net/mesh.ts';
 
 async function boot(): Promise<void> {
   // a page served from the browser's cache right after a release reloads before anything else
   watchForUpdates();
+  // the TURN relays of network games, ready before anyone connects
+  prefetchIceServers();
   const canvas = document.getElementById('game') as HTMLCanvasElement;
   const app = new App(canvas);
   await app.init();

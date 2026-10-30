@@ -23,7 +23,8 @@ New in the modern menus: every player picks a colour (the bomber picture on thei
 team; in network games everybody does it for their own players and the host for the computer players (the
 original tied colour and team to the player's row). In team games the players' cards are white or red, and the
 list shows how many play for each side. A pause
-menu during rounds (Esc: resume, end the round in a draw, quit the match). In a network game the pause stops
+menu during rounds (Esc: resume, end the round in a draw, quit the match); between rounds, where the original
+left the match at the first Esc, Esc asks first (keep playing, or quit). In a network game the pause stops
 the round for everybody: the host's command channel carries it, so every machine's simulation stops and goes
 on at the same tick, and the machines keep exchanging inputs meanwhile (nobody is given up on, however long the
 pause); every machine shows who paused, anyone can resume, and a countdown (3, 2, 1) starts everybody at once.
@@ -173,8 +174,8 @@ keeps its original meaning, off), and so does a tap on the "AI n" text on a touc
   that four players can share a keyboard: E S D F to move with A = bomb and Q = special, the arrow keys with
   . = bomb and , = special, I J K L with ; and P, the numpad's 8 4 5 6 with 0 and Enter; more can be recorded),
   a gamepad or one half of it (two players on one gamepad: the left stick or the d-pad with LB = bomb and
-  LT = special, and the right stick with A or RB = bomb and X or RT = special — the two buttons a thumb reaches
-  without letting go of that stick), the mouse (the bomber walks toward the pointer, left button = bomb, right button =
+  LT = special, and the right stick with A or RB = bomb and B or RT = special — the whole gamepad's A and B,
+  so that the right thumb never needs a trigger), the mouse (the bomber walks toward the pointer, left button = bomb, right button =
   special) or the on-screen touch controls (one player, or two players on one device with one side bar
   each). Keyboard sets use physical key positions, so they work on any keyboard layout; their labels follow
   the keyboard. The original menus' two keyboard layouts KEY 0 and KEY 1 are the sets "Keyboard right" and

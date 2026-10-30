@@ -9,10 +9,6 @@ Ideas for after the first version, roughly in order of value.
   (a short WebRTC probe, or the relay's timestamps as a first estimate) and are offered the closest games
   first. Rooms could carry a "public" flag set by the host, with the room code still working for private
   games.
-* **TURN relay out of the box.** Direct connections fail between two strict NATs (some mobile carriers).
-  A free Cloudflare TURN account with a tiny serverless function handing out short-lived credentials (or a
-  Metered free plan) would make every pair of players connect. The client already accepts a TURN server
-  at build time.
 * **Joining a match in progress** as a spectator, and taking over a computer player at the next round.
 * **Host migration**: today the room closes when its host leaves.
 * **Chat and emotes** in the lobby.

@@ -158,9 +158,12 @@ describe('TV controllers as gamepads', () => {
     expect(pressed(pads.snapshot()[0])).toEqual([]);
 
     const doc = (open: string[]) => ({ getElementById: (id: string) => ({ classList: { contains: () => open.includes(id) } }) });
-    expect(tv.backButtonFor(doc(['menu-root']), { runner: {} })).toBe(1);
-    expect(tv.backButtonFor(doc(['pause-root']), { runner: {} })).toBe(9);
-    expect(tv.backButtonFor(doc([]), { runner: {} })).toBe(9);
+    expect(tv.backButtonFor(doc(['menu-root']), { runner: { inRound: false } })).toBe(1);
+    expect(tv.backButtonFor(doc(['pause-root']), { runner: { inRound: true } })).toBe(9);
+    expect(tv.backButtonFor(doc([]), { runner: { inRound: true } })).toBe(9);
+    // between two rounds (scores, draw): B, which asks whether to leave the match; in that question, Start stays
+    expect(tv.backButtonFor(doc([]), { runner: { inRound: false } })).toBe(1);
+    expect(tv.backButtonFor(doc(['pause-root']), { runner: { inRound: false } })).toBe(9);
     expect(tv.backButtonFor(doc([]), { runner: null })).toBe(1);
   });
 });

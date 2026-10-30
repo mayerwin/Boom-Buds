@@ -11,10 +11,10 @@ accounts, analytics, ads or a server of its own.
 | Ads, analytics, crash reporting, purchases | none (no SDKs at all: Java and a WebView) |
 | Permissions | `INTERNET` only (network games) |
 | Stored on the device | settings, controls, last line-ups, player name, arena lists, schemes (WebView storage); no Android backup (`allowBackup=false`, `data_extraction_rules.xml`) |
-| Local games | nothing leaves the device |
+| Local games | nothing leaves the device; at start-up the game fetches TURN relay credentials from Metered (a GET with no data of the player's) |
 | Network games: handshake | through public MQTT brokers (EMQX, HiveMQ, Mosquitto) over TLS, encrypted end to end (AES-GCM, key from the room code); brokers keep nothing |
 | Network games: finding games on the same network | a host announces its game (host's player name, room code, players, arena) on a broker channel derived from the network's public IP address |
-| Network games: playing | player names, looks, chat messages and moves go peer to peer (WebRTC, encrypted) to the other players only; public STUN servers (Cloudflare, Google) tell a device its public address |
+| Network games: playing | player names, looks, chat messages and moves go peer to peer (WebRTC, encrypted) to the other players only; public STUN servers (Cloudflare, Google) tell a device its public address; where no direct path exists, the encrypted WebRTC traffic goes through Metered's TURN relays, which cannot read it |
 | The developer | receives nothing |
 
 ## Data safety form

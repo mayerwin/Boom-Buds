@@ -21,7 +21,6 @@ import { helpScreen } from '../ui/helpViewer.ts';
 import { createAi, type AiOptions, type AiPlayer } from '../game/ai/index.ts';
 import { CLASSIC_SET_IDS, classicLayouts, findSet, keyBits, mouseBits, padOfSet, RemoteButton, TV_REMOTE, type ControlSet } from '../app/controls.ts';
 import { openPauseMenu, type PauseMenu } from '../menu/pause.ts';
-import { showCurtain } from '../menu/curtain.ts';
 import type { Scheme } from '../engine/assets.ts';
 import { RollbackSession } from '../net/rollback.ts';
 import { cloneState } from '../game/sim/clone.ts';
@@ -67,6 +66,8 @@ export class MatchRunner {
   /** the gamepads' keys for the 1997 pause box and the fast-forward (the modern pause menu reads them itself) */
   private padKeys = new PadKeys();
   private focusLost = false;
+  /** a round is being played (not one of the screens between rounds): the TV remote's Back pauses it (android/tv/tv.js) */
+  inRound = false;
   /** the computer player that takes over a machine's players when it leaves (lost_net_revert_ai) */
   private aiLevel: AiOptions['level'];
   private seed: number;
@@ -271,6 +272,7 @@ export class MatchRunner {
     const ui = g.ui;
     const session = g.session;
     ui.flushInput();
+    this.inRound = true;
     for (;;) {
       const f = await g.app.frame();
       this.frameNo++;
@@ -333,6 +335,7 @@ export class MatchRunner {
       if (end) {
         this.showBadge(null);
         this.endPause();
+        this.inRound = false;
         return end;
       }
     }
@@ -557,7 +560,7 @@ export class MatchRunner {
       session.matchEnd = 2;
       if (this.net?.role === 'host') this.net.broadcast({ t: 'abort' });
       // the modern menus take over: a curtain instead of a still picture while they come up
-      if (this.g.menus) showCurtain(session.net ? 'Back to the lobby…' : 'Back to the menu…');
+      this.g.curtainToMenus();
     } else if (this.rb) {
       // the host ends the round in a draw: the pause ends at once, so that the command reaches the game
       this.cmd |= CMD_FORCED_DRAW;
@@ -933,6 +936,7 @@ export class MatchRunner {
   }
 
   dispose(): void {
+    this.inRound = false;
     this.showBadge(null);
     this.endPause();
     this.detach();
