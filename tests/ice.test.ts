@@ -9,6 +9,7 @@ import {
   probeRelays,
   relayStatus,
   RELAY_CHECK_MS,
+  RELAY_GIVE_UP_MS,
   RELAY_TTL_MS,
   RELAY_TIMEOUT_MS,
   type RelayStatus,
@@ -99,13 +100,12 @@ describe('ICE servers', () => {
     }
   });
 
-  it('gives up on an API that does not answer within 2.5 s (not kept either)', async () => {
+  it('a connection waits 2.5 s at most for the API; a later answer serves the next connections', async () => {
     vi.useFakeTimers();
     let calls = 0;
-    const get = (_url: string, init: RequestInit) => {
+    const get = () => {
       calls++;
-      if (calls > 1) return Promise.resolve(json(METERED));
-      return new Promise<Response>((_res, rej) => init.signal!.addEventListener('abort', () => rej(new DOMException('aborted', 'AbortError'))));
+      return new Promise<Response>((res) => setTimeout(() => res(json(METERED)), 4000));
     };
     const relays = new RelayList(URL, get);
     const first = iceServers(relays);
@@ -116,6 +116,28 @@ describe('ICE servers', () => {
     expect(settled).toBe(false);
     await vi.advanceTimersByTimeAsync(1);
     expect(await first).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(4000 - RELAY_TIMEOUT_MS);
+    expect(await iceServers(relays)).toHaveLength(1 + METERED.length);
+    expect(calls).toBe(1);
+  });
+
+  it('an API that does not answer within 10 s is given up, and that is not kept', async () => {
+    vi.useFakeTimers();
+    let calls = 0;
+    const get = (_url: string, init: RequestInit) => {
+      calls++;
+      if (calls > 1) return Promise.resolve(json(METERED));
+      return new Promise<Response>((_res, rej) => init.signal!.addEventListener('abort', () => rej(new DOMException('aborted', 'AbortError'))));
+    };
+    const relays = new RelayList(URL, get);
+    const first = iceServers(relays);
+    await vi.advanceTimersByTimeAsync(RELAY_TIMEOUT_MS);
+    expect(await first).toHaveLength(1);
+    // (a connection meanwhile waits for the same request)
+    const second = iceServers(relays);
+    await vi.advanceTimersByTimeAsync(RELAY_GIVE_UP_MS - RELAY_TIMEOUT_MS);
+    expect(await second).toHaveLength(1);
+    expect(calls).toBe(1);
     expect(await iceServers(relays)).toHaveLength(1 + METERED.length);
     expect(calls).toBe(2);
   });
@@ -202,6 +224,16 @@ describe('relay check (the note on the Network Game screen)', () => {
     expect(p.lists).toHaveLength(2);
     // connections get the relays all along
     expect(await iceServers(relays)).toHaveLength(1 + METERED.length);
+  });
+
+  it('a check waits for a slow API (a connection would have given up on it)', async () => {
+    vi.useFakeTimers();
+    const get = () => new Promise<Response>((res) => setTimeout(() => res(json(METERED)), 6000));
+    const p = prober('ok');
+    const relays = new RelayList(URL, get);
+    const status = relays.check(p.probe);
+    await vi.advanceTimersByTimeAsync(6000);
+    expect(await status).toBe('ok');
   });
 
   it('a check that throws counts as unavailable', async () => {

@@ -4,7 +4,8 @@
 //   OK of the remote is a menu press and a held one adds the remote as player 2; a button held on the pad says it
 //   already plays and a second hold shares it (its left half for player 1, its right half for a third player,
 //   whose removal gives the whole pad back); a round starts; both move their bombers, the remote drops a bomb;
-//   the effects play through native SoundPool;
+//   the effects load one at a time in the menus, at full speed once a match starts, and play through native
+//   SoundPool;
 //   Back pauses (the round stops), Back resumes; between rounds Back asks whether to leave the match and Back
 //   again stays; quitting returns to the lobby at once; a local game asks nothing of the TURN relays, Network
 //   Game asks for them and checks them; Back leaves the menus and, on the main screen, the app; the game canvas
@@ -51,6 +52,8 @@ async function main() {
     assert.ok(home.pads.includes('BB QA Pad ' + PAD), 'the gamepad is a gamepad: ' + home.pads);
     const devices = JSON.parse(await app.evaluate('AndroidHost.getDevices()'));
     await check('home', { devices: devices.filter((d) => d.bridged).map((d) => `${d.name}${d.remote ? ' (remote)' : ''}`) });
+    // in the menus the effects load one at a time (the menus keep their frame rate)
+    assert.equal((await audio()).decoders, 1, 'one sound decoded at a time in the menus');
     await sleep(2000); // (the splash fades out)
     await shot('1-home');
 
@@ -186,6 +189,7 @@ async function main() {
     const sound1 = await audio();
     assert.equal(sound1.backend, 'Android SoundPool');
     assert.ok(sound1.loaded > 20, 'effects preloaded natively: ' + JSON.stringify(sound1));
+    assert.equal(sound1.decoders, sound1.pools, 'a match loads the rest at full speed');
     assert.ok(sound1.plays > sound0.plays, 'the bombs sounded natively: ' + JSON.stringify(sound1));
     await check('playing', { audio: sound1 });
     await shot('3-round');

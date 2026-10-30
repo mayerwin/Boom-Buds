@@ -10,9 +10,11 @@ only what a TV needs, in this folder:
   website never loads `tv.js`.
 - **Sound** (`NativeAudio.java`): the WebView's audio output adds a noticeable delay on TVs, so the game's
   effects and voices play through Android's `SoundPool`, preloaded from the packaged files in the background
-  when the game starts (the round's effects first, then each announcer's next voice, picked in advance).
-  `SoundPool` decodes every file it loads, tens of milliseconds each, so the app loads only the session's
-  sounds (about 125), on 4 pools that decode in parallel; a sound not loaded yet plays through the WebView.
+  from the first press on (the menus' own sounds first, then the round's effects, then each announcer's next
+  voice, picked in advance). `SoundPool` decodes every file it loads, tens of milliseconds each, so the app
+  loads only the session's sounds (about 125): one at a time while the menus show, so that they keep their
+  frame rate (four decoders at once took the TV's cores from the menus for seconds), and on 4 pools in parallel
+  once a round starts. A sound not loaded yet plays through the WebView, which decodes it only then.
   Only the music stays on Web Audio: it follows no action, and `SoundPool` is meant for short sounds.
 - **Picture**: the app asks the TV for its 4K mode at the current refresh rate (never 4K at 30 Hz) and for
   its low-latency game mode, and the game draws at the WebView's full physical resolution.

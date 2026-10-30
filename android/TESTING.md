@@ -49,7 +49,7 @@ join but a held one does, a button held on the gamepad says it already plays and
 half for player 1, its right half for a third player) until removing that player gives player 1 the whole gamepad
 back; a round starts with gamepad, remote and computer players; both move their bombers;
 with trigger bombs the gamepad's A still drops one at once and B sets it off; the remote's OK drops a bomb at
-once, and with trigger bombs a short OK drops one when let go while a long OK (the special) sets it off; every effect and voice is preloaded in `SoundPool` and the bombs play there (no Web
+once, and with trigger bombs a short OK drops one when let go while a long OK (the special) sets it off; every effect and voice is preloaded in `SoundPool` (one at a time in the menus, on every pool once the round starts) and the bombs play there (no Web
 Audio fallback); Back pauses (the simulation stops), Back resumes; between two rounds (a draw) Back asks whether to leave the
 match, Back again stays and OK plays the next round; Quit returns to the lobby at once (the record says how many
 milliseconds that took) and the curtain over the way back goes; nothing asked the TURN credentials API until then;

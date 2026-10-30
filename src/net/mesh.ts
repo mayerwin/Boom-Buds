@@ -26,8 +26,10 @@ export interface PeerConn {
 const STUN: RTCIceServer = { urls: ['stun:stun.cloudflare.com:3478', 'stun:stun.l.google.com:19302'] };
 /** how long a relay list from the credentials API is used before it is asked for again */
 export const RELAY_TTL_MS = 30 * 60_000;
-/** how long the credentials API gets to answer (time the page runs; a connection made meanwhile waits for it) */
+/** how long a connection waits for the credentials API's answer (time the page runs); then it goes without relays */
 export const RELAY_TIMEOUT_MS = 2500;
+/** how long the credentials API gets to answer at all: a late answer still serves the next connections */
+export const RELAY_GIVE_UP_MS = 10_000;
 
 /** The servers of a credentials API's answer: an array of RTCIceServer, or `{ iceServers: [...] }`. */
 export function parseIceServers(data: unknown): RTCIceServer[] {
@@ -77,8 +79,9 @@ function afterRunning(ms: number, f: () => void): () => void {
 
 /**
  * TURN relays from a credentials API (Metered's: a GET returns the STUN and TURN servers with their
- * credentials). The list is kept for 30 minutes. A request that fails or takes longer than 2.5 s gives no relays
- * this time and is not kept: the next connection asks again.
+ * credentials). The list is kept for 30 minutes. A connection waits 2.5 s at most for it and then goes without;
+ * the request goes on for up to 10 s, and a late answer serves the next connections. A request that fails is not
+ * kept: the next connection asks again.
  */
 export class RelayList {
   /** what the last check found */
@@ -101,8 +104,23 @@ export class RelayList {
     this.clock = clock;
   }
 
-  /** The relays: the kept list while it is fresh, else the answer to the request under way (or a new one). */
+  /**
+   * The relays for a connection: the kept list while it is fresh, else the answer to the request under way (or a
+   * new one), or none after 2.5 s.
+   */
   load(): Promise<RTCIceServer[]> {
+    const answer = this.answer();
+    return new Promise((resolve) => {
+      const stop = afterRunning(RELAY_TIMEOUT_MS, () => resolve([]));
+      void answer.then((list) => {
+        stop();
+        resolve(list);
+      });
+    });
+  }
+
+  /** The kept list while it is fresh, else the answer to the request under way (or a new one), however late. */
+  private answer(): Promise<RTCIceServer[]> {
     if (this.servers && this.clock() - this.at < RELAY_TTL_MS) return Promise.resolve(this.servers);
     if (!this.pending) this.pending = this.request().finally(() => (this.pending = null));
     return this.pending;
@@ -119,7 +137,7 @@ export class RelayList {
   }
 
   private async recheck(probe: Probe): Promise<RelayStatus> {
-    const list = await this.load();
+    const list = await this.answer();
     const status = list.length ? await probe(list).catch((): RelayStatus => 'unavailable') : LIMIT_CODES.has(this.refused) ? 'limit' : 'unavailable';
     if (status === 'ok') this.workedAt = this.at;
     return (this.status = status);
@@ -127,7 +145,7 @@ export class RelayList {
 
   private async request(): Promise<RTCIceServer[]> {
     const abort = new AbortController();
-    const stop = afterRunning(RELAY_TIMEOUT_MS, () => abort.abort());
+    const stop = afterRunning(RELAY_GIVE_UP_MS, () => abort.abort());
     this.refused = 0;
     try {
       const r = await this.get(this.url, { cache: 'no-store', signal: abort.signal });

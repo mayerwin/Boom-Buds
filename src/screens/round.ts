@@ -128,6 +128,7 @@ export class MatchRunner {
     const g = this.g;
     const sess = g.session;
     if (sess.netMode === 0) g.app.audio.maybeRecull();
+    g.app.audio.forMatch();
     // clients: the host's latest slot table (sent before the key that started this round)
     const net = this.net;
     if (net && net.role === 'client') {

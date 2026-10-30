@@ -45,6 +45,8 @@ const RECULL_MS = 1800 * 1000;
 interface NativeSounds {
   playSound(path: string, volume: number): boolean;
   preloadSounds(json: string): void;
+  /** a match is coming: what is still loading loads at full speed (one sound at a time in the menus) */
+  hurrySounds?(): void;
 }
 const nativeSounds = (typeof window !== 'undefined' ? (window as unknown as { AndroidHost?: Partial<NativeSounds> }).AndroidHost : undefined) as NativeSounds | undefined;
 const NATIVE = !!nativeSounds && typeof nativeSounds.playSound === 'function';
@@ -173,6 +175,11 @@ export class AudioEngine {
     this.lastCull = performance.now();
   }
 
+  /** A round is about to start: the TV app's mixer loads the effects it still misses at full speed. */
+  forMatch(): void {
+    if (NATIVE) nativeSounds!.hurrySounds?.();
+  }
+
   /** sound_periodic_flush: re-cull every 30 minutes (checked at match setup and round start). */
   maybeRecull(): void {
     if (performance.now() > this.lastCull + RECULL_MS) {
@@ -227,6 +234,9 @@ export class AudioEngine {
       this.nextVoice.clear();
       const voices = VOICE_GROUPS.flatMap((base) => this.voiceAhead(base));
       nativeSounds!.preloadSounds(JSON.stringify([...list, ...voices].flatMap((n) => this.nativeFile(n))));
+      // the mixer plays them: the page decodes one only when the mixer has not loaded it yet (decoding them all
+      // here as well took the TV's cores from the menus for seconds)
+      return;
     }
     // a few at a time to keep the main thread responsive
     for (let i = 0; i < list.length; i += 8) await Promise.all(list.slice(i, i + 8).map((n) => this.load(n)));

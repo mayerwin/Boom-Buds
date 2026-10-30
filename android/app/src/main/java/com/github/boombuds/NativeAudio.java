@@ -28,6 +28,13 @@ import java.util.concurrent.Executors;
 final class NativeAudio {
     /** SoundPool decodes its sounds one at a time: several pools decode in parallel */
     static final int POOLS = 4;
+    /**
+     * Sounds decoded at once while the menus show: one, so that the menus keep their frame rate (four decoders
+     * took every core of a TV for seconds after the first press); every pool once a match is coming (hurry).
+     */
+    private static final int CALM_DECODES = 1;
+    /** a decode that has not reported back by then no longer holds the next one */
+    private static final long DECODE_WAIT_MS = 3000;
     private static final int STREAMS_PER_POOL = 16;
     private final AssetManager assets;
     private final ExecutorService loader = Executors.newSingleThreadExecutor();
@@ -48,6 +55,10 @@ final class NativeAudio {
     private final Map<Long, Integer> early = new HashMap<>();
     private final Set<String> failed = new HashSet<>();
     private int next;
+    private int decodeLimit = CALM_DECODES;
+    /** decodes under way, and when the last one started */
+    private int decoding;
+    private long decodeStartedAt;
     private int loadedCount;
     private boolean active;
     private boolean released;
@@ -78,6 +89,7 @@ final class NativeAudio {
 
     private synchronized void loadComplete(int pool, int id, int status) {
         if (released) return;
+        decodeDone();
         Sample sample = byId.get(key(pool, id));
         if (sample == null) {
             // (decoded before load() registered it: it does when it gets the lock)
@@ -85,6 +97,17 @@ final class NativeAudio {
             return;
         }
         finish(sample, status);
+    }
+
+    private void decodeDone() {
+        if (decoding > 0) decoding--;
+        notifyAll();
+    }
+
+    /** A match is coming: the sounds still missing decode in every pool at once. */
+    synchronized void hurry() {
+        decodeLimit = POOLS;
+        notifyAll();
     }
 
     private void finish(Sample sample, int status) {
@@ -134,6 +157,13 @@ final class NativeAudio {
         SoundPool soundPool;
         synchronized (this) {
             if (released || pools[0] == null || path.isEmpty() || samples.containsKey(path) || failed.contains(path)) return;
+            // (only this loader thread waits here; play() takes the lock meanwhile)
+            while (decoding >= decodeLimit && SystemClock.uptimeMillis() - decodeStartedAt < DECODE_WAIT_MS) {
+                try { wait(250); } catch (InterruptedException e) { return; }
+                if (released) return;
+            }
+            decoding++;
+            decodeStartedAt = SystemClock.uptimeMillis();
             pool = next++ % POOLS;
             soundPool = pools[pool];
         }
@@ -142,7 +172,7 @@ final class NativeAudio {
             int id = soundPool.load(fd, 1);
             synchronized (this) {
                 if (released) return;
-                if (id == 0) { failed.add(path); return; }
+                if (id == 0) { decodeDone(); failed.add(path); return; }
                 Sample sample = new Sample(pool, id);
                 samples.put(path, sample);
                 byId.put(key(pool, id), sample);
@@ -151,6 +181,7 @@ final class NativeAudio {
             }
         } catch (IOException | RuntimeException e) {
             synchronized (this) {
+                decodeDone();
                 failed.add(path);
                 lastError = path + ": " + e.getClass().getSimpleName();
             }
@@ -186,7 +217,7 @@ final class NativeAudio {
 
     synchronized String diagnostics() {
         long loadMs = lastLoadedAt > 0 ? lastLoadedAt - firstRequestAt : -1;
-        return "{\"backend\":\"Android SoundPool\",\"pools\":" + POOLS + ",\"active\":" + active + ",\"loaded\":" + loadedCount
+        return "{\"backend\":\"Android SoundPool\",\"pools\":" + POOLS + ",\"decoders\":" + decodeLimit + ",\"active\":" + active + ",\"loaded\":" + loadedCount
             + ",\"requested\":" + samples.size() + ",\"failed\":" + failed.size() + ",\"plays\":" + plays
             + ",\"fallbacks\":" + fallbacks + ",\"loadMs\":" + loadMs
             + ",\"lastError\":\"" + lastError.replace("\"", "'") + "\"}";

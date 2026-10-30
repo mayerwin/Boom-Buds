@@ -99,10 +99,11 @@ test('1997 mode entered from the modern menus: leaving a match leaves nothing ov
   await key(page, 'Enter', 1500); // -> options
   await key(page, 'Enter', 2500); // -> round
   expect(await inRound(page)).toBe(true);
-  // Esc: the 1997 box; 3: "Quit the match"
-  await key(page, 'Escape', 400);
-  await key(page, 'Digit3', 1500);
-  expect(await inRound(page)).toBe(false);
+  // Esc: the 1997 box (a busy machine draws it a moment later); 3: "Quit the match"
+  await key(page, 'Escape');
+  await expect.poll(() => page.evaluate(() => !!(window as unknown as { __boombuds: { game: { runner: { menu?: { box: unknown } } } } }).__boombuds.game.runner?.menu?.box)).toBe(true);
+  await key(page, 'Digit3');
+  await expect.poll(() => inRound(page), { timeout: 10_000 }).toBe(false);
   await expect(page.locator('#curtain-root')).toHaveCount(0);
   expect(errors).toEqual([]);
 });

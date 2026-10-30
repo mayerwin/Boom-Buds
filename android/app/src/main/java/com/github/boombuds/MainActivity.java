@@ -190,6 +190,8 @@ public final class MainActivity extends Activity implements InputManager.InputDe
             return nativeAudio != null && nativeAudio.play(path, volume);
         }
         @JavascriptInterface public void preloadSounds(String json) { if (nativeAudio != null) nativeAudio.preload(json); }
+        /** A match is coming: the sounds still loading decode at full speed (one at a time in the menus). */
+        @JavascriptInterface public void hurrySounds() { if (nativeAudio != null) nativeAudio.hurry(); }
         @JavascriptInterface public void stopSounds() { if (nativeAudio != null) nativeAudio.stopAll(); }
         @JavascriptInterface public String getAudioInfo() { return nativeAudio == null ? "{}" : nativeAudio.diagnostics(); }
         @JavascriptInterface public void ready() {
