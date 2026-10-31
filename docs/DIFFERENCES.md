@@ -3,7 +3,8 @@
 Boom Buds reproduces Atomic Bomberman (Interplay / Hudson Soft, 1997, `BM95.EXE`) from its own data files
 and from a reverse-engineered specification of the executable (`docs/re/*.md`). The game itself — rounds,
 pictures, sprites, fonts, palettes, sounds, music, levels, schemes, rules, timings and the screens between
-rounds (draw, results, victory, Gold Bud roulette) — follows the original pixel for pixel. The menus are new
+rounds (draw, results, victory, Gold Bud roulette) — follows the original pixel for pixel, except for the
+Hockey Rink's ice, which is only for show outside 1997 mode (§0b). The menus are new
 (§0); the original menus and dialogs are still available and are reproduced pixel for pixel too. This file
 lists every place where Boom Buds differs on purpose, and the original behaviours that cannot be carried
 over to a browser.
@@ -28,7 +29,7 @@ left the match at the first Esc, Esc asks first (keep playing, or quit). In a ne
 the round for everybody: the host's command channel carries it, so every machine's simulation stops and goes
 on at the same tick, and the machines keep exchanging inputs meanwhile (nobody is given up on, however long the
 pause); every machine shows who paused, anyone can resume, and a countdown (3, 2, 1) starts everybody at once.
-The arena can also be a random special one (the arenas with ice, arrows, warp holes, conveyor belts, trampolines
+The arena can also be a random special one (the arenas with arrows, warp holes, conveyor belts, trampolines
 or bricks that grow back) or a random one among a list the player ticks (lists can be named and kept). The
 network lobby has a chat (with who comes and goes); the players who are not the host may change the rules and
 the computer players too, as requests: their screen marks them "asked", the chat shows them to everybody, and the
@@ -62,7 +63,11 @@ button in the top right corner (or Ctrl+M) ends it. It means:
   acts like a tap on a touch screen: it selects and activates);
 * the original minimum waits before the draw, results and setup screens can be left (1 s, 3 s in network
   games; by default there is none, so Enter starts the next round at once), and its pause at the end of a match
-  (1 s on the round's last picture; by default the menus come back at once, under a curtain while they are drawn).
+  (1 s on the round's last picture; by default the menus come back at once, under a curtain while they are drawn);
+* the original's ice on the Hockey Rink: a person's bomber starts, stops and changes direction 250 ms after
+  the input (VALUELST 452; the computer players are not delayed, docs/re/extras-levels.md §8.1). By default
+  the ice is only for show: the delay made the arena feel like lag, more so on a TV, whose picture and
+  controllers already add their own. In a network game the host's choice holds for everybody.
 
 Each of these can also be kept for good, on its own, under *Keep some of the original's ways* in Options.
 Whatever the mode, the system's mouse cursor shows beside the game picture (in the bars around it), so that
@@ -126,7 +131,8 @@ level staying the current settings afterwards), and the others listed in `docs/r
   In the original menus, *Start Network Game* shows the room code and *Join Network Game* asks for it
   instead of listing servers. The protocol and modem settings rows are kept in the original Options screen
   but have no effect. Where a network blocks direct connections, the machines go through a TURN relay; when it
-  is unavailable (or its monthly allowance is used up), the Network Game screens say so in a small note.
+  is unavailable (or its monthly allowance is used up), the Network Game screens say so in a small note,
+  checking again every minute while they are open.
 * **Lobby (modern menus).** Every machine brings players of its own (as many as the ten slots leave room for)
   and picks their control sets; the host picks the arena and rules and adds computer players; the host's *Start* starts the match on
   every machine, and after the match everybody is back in the lobby (new machines may join between matches).

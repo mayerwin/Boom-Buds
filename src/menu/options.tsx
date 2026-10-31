@@ -74,8 +74,8 @@ export function Options(): JSX.Element {
           <Toggle label="Computer players take over lost network players" value={!!st.lost_net_revert_ai} onChange={(v) => change(() => (st.lost_net_revert_ai = v ? 1 : 0))} />
           <h2>1997 mode</h2>
           <div class="small muted">
-            Play exactly like the original game: its menus, pixel for pixel, its hidden mouse and its waits between
-            rounds. Just for this visit: your settings stay as they are, and the Back to today button brings you
+            Play exactly like the original game: its menus, pixel for pixel, its hidden mouse, its waits between
+            rounds and its slippery ice. Just for this visit: your settings stay as they are, and the Back to today button brings you
             back.
           </div>
           <button
@@ -106,6 +106,12 @@ export function Options(): JSX.Element {
               hint="the next screen can only be reached after a moment"
               value={!!st.classicWaits}
               onChange={(v) => change(() => (st.classicWaits = v ? 1 : 0))}
+            />
+            <Toggle
+              label="Original ice on the Hockey Rink"
+              hint="your bomber starts, stops and turns a quarter of a second after you do (in network games, the host's choice)"
+              value={!!st.classicIce}
+              onChange={(v) => change(() => (st.classicIce = v ? 1 : 0))}
             />
           </details>
           <h2>Extras</h2>

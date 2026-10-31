@@ -10,6 +10,7 @@ import {
   relayStatus,
   RELAY_CHECK_MS,
   RELAY_GIVE_UP_MS,
+  RELAY_RETRY_MS,
   RELAY_TTL_MS,
   RELAY_TIMEOUT_MS,
   type RelayStatus,
@@ -239,6 +240,48 @@ describe('relay check (the note on the Network Game screen)', () => {
   it('a check that throws counts as unavailable', async () => {
     const relays = new RelayList(URL, api(METERED).get);
     expect(await relays.check(() => Promise.reject(new Error('no WebRTC')))).toBe('unavailable');
+  });
+});
+
+describe('relay watch (while a network screen is open)', () => {
+  it('checks at once, then every minute while the relays do not work, until they do', async () => {
+    vi.useFakeTimers();
+    const a = api(new TypeError('Failed to fetch'), json({}, 402), METERED);
+    const p = prober('ok');
+    const relays = new RelayList(URL, a.get);
+    const seen: RelayStatus[] = [];
+    const stop = relays.watch((s) => seen.push(s), p.probe);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(seen.at(-1)).toBe('unavailable');
+    await vi.advanceTimersByTimeAsync(RELAY_RETRY_MS - 1);
+    expect(a.calls).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(seen.at(-1)).toBe('limit');
+    await vi.advanceTimersByTimeAsync(RELAY_RETRY_MS);
+    expect(seen.at(-1)).toBe('ok');
+    await vi.advanceTimersByTimeAsync(RELAY_RETRY_MS * 5);
+    expect(a.calls).toHaveLength(3);
+    expect(p.lists).toHaveLength(1);
+    stop();
+  });
+
+  it('hears the checks of connections too, and nothing once stopped', async () => {
+    vi.useFakeTimers();
+    const a = api(json({}, 500), METERED);
+    const relays = new RelayList(URL, a.get);
+    const seen: RelayStatus[] = [];
+    const stop = relays.watch((s) => seen.push(s), prober('ok').probe);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(seen.at(-1)).toBe('unavailable');
+    // a connection's check finds the relay back before the next minute
+    await relays.check(prober('ok').probe);
+    expect(seen.at(-1)).toBe('ok');
+    stop();
+    const n = seen.length;
+    await relays.check(prober('unavailable').probe);
+    await vi.advanceTimersByTimeAsync(RELAY_RETRY_MS * 3);
+    expect(seen).toHaveLength(n);
+    expect(a.calls).toHaveLength(2);
   });
 });
 

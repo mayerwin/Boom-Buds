@@ -7,7 +7,7 @@ import type { Game } from '../app/Game.ts';
 import { K } from '../ui/menuInput.ts';
 import { isRealKey } from '../ui/ui.ts';
 import { NetSession } from '../net/netSession.ts';
-import { relayStatus } from '../net/mesh.ts';
+import { relayStatus, watchRelays } from '../net/mesh.ts';
 import { normalizeRoomCode } from '../net/room.ts';
 import { matchPlay } from './match.ts';
 
@@ -93,6 +93,8 @@ export async function netStartGameScreen(g: Game): Promise<void> {
     return;
   }
   beginSession(g, net);
+  // (relays that do not work are checked again every minute; the note below reads what was found)
+  const unwatch = watchRelays(() => {});
   try {
     let start = performance.now();
     let lastCount = 0;
@@ -136,6 +138,7 @@ export async function netStartGameScreen(g: Game): Promise<void> {
       }
     }
   } finally {
+    unwatch();
     endSession(g);
   }
 }
@@ -145,6 +148,7 @@ export async function netJoinGameScreen(g: Game): Promise<void> {
   const ui = g.ui;
   const net = await netConnect(g);
   if (!net) return;
+  const unwatch = watchRelays(() => {});
   try {
     for (;;) {
       ui.restore();
@@ -182,6 +186,7 @@ export async function netJoinGameScreen(g: Game): Promise<void> {
       g.app.audio.playMusic(1040);
     }
   } finally {
+    unwatch();
     net.close();
     g.session.endNet();
     ui.netMode = 0;

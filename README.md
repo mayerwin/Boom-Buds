@@ -52,8 +52,8 @@ gamepads and touch controls, online play without a server, and computer players 
 - **Every rule of the original:** 11 arenas with conveyors, arrows, warps and trampolines; kicking, punching
   and grabbing bombs, trigger and jelly bombs, diseases, the walls closing in at the end of a round, schemes,
   teams and the Gold Bud roulette. The hidden campaign and level editor are there too.
-- **1997 mode** brings back the original menus pixel for pixel, its hidden mouse and its waits between
-  rounds (fast-forward stays), for one visit: the *1997 mode* link on the main screen, or [`?1997`](https://mayerwin.github.io/Boom-Buds/?1997)
+- **1997 mode** brings back the original menus pixel for pixel, its hidden mouse, its waits between
+  rounds and the Hockey Rink's slippery ice (fast-forward stays), for one visit: the *1997 mode* link on the main screen, or [`?1997`](https://mayerwin.github.io/Boom-Buds/?1997)
   in the address (handy to share). Options can keep any of those habits for good.
 - **Fast:** a WebGL2 8-bit renderer and a fixed 60 Hz simulation. Ten top-level computer players run at the
   display's full refresh rate on a tenth of one CPU core.
@@ -179,7 +179,7 @@ countdown starts everybody at once.
 - Above the arena, each player's name shows with a trophy (rounds won) and a skull (kills); team games show
   the team scores first. Playing alone on your device, your bomber glows under a "YOU" arrow at the start of
   each round.
-- The arena can be one arena, a random one, a random *special* one (ice, arrows, warp holes, conveyor belts,
+- The arena can be one arena, a random one, a random *special* one (arrows, warp holes, conveyor belts,
   trampolines, bricks that grow back), or a random one of your own pick: tick the arenas, and give the list a
   name to keep it.
 - Once every person is out, the round fast-forwards while the computer players finish it: ← → (or a gamepad's
@@ -225,7 +225,8 @@ the TV app's). The game asks it for the relays when Network Game opens (local ga
 for 30 minutes, and connects with the STUN servers alone when it gets no answer within 2.5 s (the next connection
 asks again). It also asks the relay for one address: when that fails (the service is down or out of reach, or its
 monthly allowance is used up), a small note on the Network Game screen says so, and devices that can connect
-directly still play. The key is in the published game, as any TURN credential used by a browser is: use a key made
+directly still play. The screen checks again every minute while it stays open, so the note goes away by itself
+once the relay is back. The key is in the published game, as any TURN credential used by a browser is: use a key made
 for this, with a monthly limit. Fixed relays work too: `VITE_TURN_URLS`, `VITE_TURN_USERNAME` and `VITE_TURN_CREDENTIAL` (the
 repository variables `TURN_URLS` and `TURN_USERNAME` and the secret `TURN_CREDENTIAL`). To check that the relay
 really carries a game, give both devices `?nodirect`: they then connect only through relays, so without one they

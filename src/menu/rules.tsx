@@ -11,6 +11,7 @@ import { cleanLevels, type Settings } from '../app/settings.ts';
 import type { Game } from '../app/Game.ts';
 import { allSchemes, loadCustomSchemes } from '../app/schemes.ts';
 import { specialLevels } from '../game/levels.ts';
+import { originalIce } from '../app/modes.ts';
 
 export interface Rules {
   /** an arena 0-10, or random: -1 any, -2 one with something special, -3 one of `levels` */
@@ -95,7 +96,7 @@ export function arenaFeatures(g: Game, n: number): string[] {
   const v = (id: number) => g.app.text.values[id]?.[0] ?? 0;
   const kinds = new Set((g.app.text.extras[String(n)] ?? []).map((e) => e.kind));
   const out: string[] = [];
-  if (v(450 + n) > 0) out.push('ice');
+  if (v(450 + n) > 0 && originalIce(g.settings)) out.push('ice');
   if (v(340 + n) > 0) out.push('bricks grow back');
   if (kinds.has('A')) out.push('arrows');
   if (kinds.has('W')) out.push('warp holes');

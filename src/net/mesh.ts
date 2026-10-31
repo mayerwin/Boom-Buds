@@ -61,6 +61,8 @@ type Probe = (servers: RTCIceServer[]) => Promise<RelayStatus>;
 const LIMIT_CODES = new Set([402, 429, 486]);
 /** how long a relay check waits for the relay to give this device an address (time the page runs) */
 export const RELAY_CHECK_MS = 5000;
+/** how often an open network screen checks again relays that do not work */
+export const RELAY_RETRY_MS = 60_000;
 
 /**
  * Call `f` once the page has run for `ms`; returns what cancels it. The time counts in quarter seconds, so that
@@ -94,6 +96,7 @@ export class RelayList {
   private checking: Promise<RelayStatus> | null = null;
   /** the list a check found working (by the time it came) */
   private workedAt = -1;
+  private readonly listeners = new Set<(s: RelayStatus) => void>();
   private readonly url: string;
   private readonly get: Fetch;
   private readonly clock: () => number;
@@ -140,7 +143,30 @@ export class RelayList {
     const list = await this.answer();
     const status = list.length ? await probe(list).catch((): RelayStatus => 'unavailable') : LIMIT_CODES.has(this.refused) ? 'limit' : 'unavailable';
     if (status === 'ok') this.workedAt = this.at;
-    return (this.status = status);
+    this.status = status;
+    for (const l of this.listeners) l(status);
+    return status;
+  }
+
+  /**
+   * Keep an open network screen up to date: a check now, then one a minute while the relays do not work;
+   * `onChange` hears what every check finds (also the checks of connections). Returns what stops it.
+   */
+  watch(onChange: (s: RelayStatus) => void, probe: Probe = probeRelays): () => void {
+    const listener = (s: RelayStatus) => onChange(s);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const run = () =>
+      void this.check(probe).then((s) => {
+        if (!this.listeners.has(listener)) return;
+        onChange(s);
+        if (s !== 'ok') timer = setTimeout(run, RELAY_RETRY_MS);
+      });
+    this.listeners.add(listener);
+    run();
+    return () => {
+      this.listeners.delete(listener);
+      clearTimeout(timer);
+    };
   }
 
   private async request(): Promise<RTCIceServer[]> {
@@ -208,6 +234,11 @@ const RELAYS = relayApi && typeof fetch === 'function' ? new RelayList(relayApi)
  */
 export function checkRelays(): Promise<RelayStatus> {
   return RELAYS ? RELAYS.check() : Promise.resolve('none');
+}
+
+/** While a network screen is open: the relay check now, again every minute while the relays do not work (see RelayList.watch). */
+export function watchRelays(onChange: (s: RelayStatus) => void): () => void {
+  return RELAYS ? RELAYS.watch(onChange) : () => {};
 }
 
 /** What the last relay check found (see checkRelays). */

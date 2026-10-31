@@ -31,7 +31,7 @@ the player code treat the buttons as freshly pressed even if they were held last
 (perfect forward model), but mind the CPU budget. Use your own seeded RNG (never Math.random).
 
 Notes from the original rules that matter: AI players (`ctrl === 1`) are exempt from the reversed-controls
-disease and the hockey-rink ice delay; inputs are ignored for the first 1000 ms of a round and while
+disease and the hockey-rink ice delay (which Boom Buds clears outside 1997 mode); inputs are ignored for the first 1000 ms of a round and while
 stunned/warping/trampolining/in the pickup pause; a dying player counts as alive for 1 s; flames kill if the
 player's anchor cell has any flame; movement is pixel based with lane alignment and corner sliding
 (player.md §6.2); kicks happen automatically when walking centred into a bomb with a kicker.

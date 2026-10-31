@@ -29,6 +29,14 @@ export function originalWaits(st: Settings): boolean {
   return visit || !!st.classicWaits;
 }
 
+/**
+ * The original's control delay on ice (the Hockey Rink): a person's bomber starts, stops and turns a quarter of a
+ * second after the input. By default the ice is only for show.
+ */
+export function originalIce(st: Settings): boolean {
+  return visit || !!st.classicIce;
+}
+
 /** Rounds run faster once only computer players are left (a Boom Buds addition, in 1997 mode too). */
 export function fastForward(st: Settings): boolean {
   return !!st.fastForward;

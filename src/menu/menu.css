@@ -317,10 +317,7 @@
 }
 .chipbtn:hover { transform: translateY(-2px); background: rgba(38, 27, 82, 0.8); }
 .chipbtn .ico { width: 20px; height: 20px; flex: none; }
-.strollers { position: absolute; left: 0; right: 0; bottom: max(0px, env(safe-area-inset-bottom)); height: 94px; overflow: hidden; pointer-events: none; transition: opacity 1.2s ease; }
-/* the main menu left alone: the bombers fade out and the sparks stop (see useIdle) */
-.home.calm .strollers { opacity: 0; }
-.home.calm .bb-spark { animation-play-state: paused; }
+.strollers { position: absolute; left: 0; right: 0; bottom: max(0px, env(safe-area-inset-bottom)); height: 94px; overflow: hidden; pointer-events: none; }
 /* only transforms are animated (the walk across and the frames of the strip), so the compositor does it all */
 .stroller {
   position: absolute;

@@ -50,7 +50,7 @@ export function HowTo(): JSX.Element {
           <h3>Diseases</h3>
           <p class="small">Slow legs, too fast, no bombs, bombs everywhere, short flame, short fuse, reversed controls, swapped places… Touch another bud to pass it on, or wait for it to wear off.</p>
           <h3>Arenas</h3>
-          <p class="small">Arrows turn kicked bombs, conveyor belts carry everyone along, warp holes teleport you, trampolines throw you over the walls. On the Hockey Rink's ice your bomber starts, stops and changes direction a quarter of a second after you do. When time runs out, the walls close in.</p>
+          <p class="small">Arrows turn kicked bombs, conveyor belts carry everyone along, warp holes teleport you, trampolines throw you over the walls. The Hockey Rink's ice is only for show, except with the original's ice (1997 mode, or Options): your bomber then starts, stops and changes direction a quarter of a second after you do. When time runs out, the walls close in.</p>
         </div>
         <div class="panel scroll" tabIndex={0} data-scroller="" role="group" aria-label="power-ups">
           <h2>Power-ups</h2>

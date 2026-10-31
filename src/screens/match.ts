@@ -21,10 +21,10 @@ import { DrawMode } from '../engine/gl/Renderer.ts';
 import { TEXT_SHADOW } from '../ui/gnw.ts';
 import { CAMP_FAILED } from '../game/sim/campaign.ts';
 import { allSchemes, parseSchemeText, schemeFileText } from '../app/schemes.ts';
-import { specialLevels } from '../game/levels.ts';
+import { LEVEL_COUNT, specialLevels } from '../game/levels.ts';
 import { cleanLevels } from '../app/settings.ts';
 import { classicChoices, classicInput, idsClash, keyboardsHere, slotSetId } from '../app/controls.ts';
-import { originalMouse, originalWaits } from '../app/modes.ts';
+import { originalIce, originalMouse, originalWaits } from '../app/modes.ts';
 import { lineupFromSlots, savedLineupSlots, schemeTeams, storeLineup } from '../menu/lineup.ts';
 import { openPauseMenu, type PauseMenu } from '../menu/pause.ts';
 
@@ -52,6 +52,8 @@ export interface MatchParams {
   diseasesDestroyable: number;
   playtime: number;
   smallMemory: number;
+  /** 1: the original's control delay on ice (VALUELST 450+n); without it the ice is only for show */
+  ice: number;
   goldWinner: number;
   goldPrize: number;
   seed: number;
@@ -89,6 +91,7 @@ export function buildParams(g: Game, level: number): MatchParams {
     diseasesDestroyable: local ? st.diseases_destroyable : 1,
     playtime: st.playtime,
     smallMemory: st.smallmemory,
+    ice: originalIce(st) ? 1 : 0,
     goldWinner: local && st.goldman && !session.attract ? session.goldPlayer : -1,
     goldPrize: session.rouletteResult,
     seed: ((Date.now() & 0x7fffffff) ^ (ui.rand() << 15) ^ ui.rand()) >>> 0,
@@ -107,6 +110,8 @@ function configFromParams(g: Game, p: MatchParams): MatchConfig {
     values[3] = 1;
     values[4] = 0;
   }
+  // Boom Buds' ice is only for show; 1997 mode keeps the original's control delay (the host's choice)
+  if (!p.ice) for (let n = 0; n < LEVEL_COUNT; n++) values[450 + n] = 0;
   return {
     slots: g.session.slots.map((sl) => ({ ctrl: slotCtrl(sl.type), team: sl.team })),
     values,

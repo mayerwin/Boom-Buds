@@ -111,10 +111,7 @@ function Strollers(): JSX.Element {
   );
 }
 
-/**
- * True after `ms` without any input: the decorations then fade out and stop, so that a main menu left open
- * costs no CPU or GPU time (a moving picture keeps the compositor drawing at the display's refresh rate).
- */
+/** True after `ms` without any input. */
 function useIdle(ms: number): boolean {
   const [idle, setIdle] = useState(false);
   useEffect(() => {
@@ -142,17 +139,10 @@ export function Home(): JSX.Element {
   useEffect(() => {
     if (idle && updateReady() && !net) void installUpdate();
   }, [idle]);
-  // the bombers leave after the fade-out (unmounted: no animation left running)
-  const [walkers, setWalkers] = useState(true);
-  useEffect(() => {
-    if (!idle) return setWalkers(true);
-    const t = setTimeout(() => setWalkers(false), 1300);
-    return () => clearTimeout(t);
-  }, [idle]);
   return (
-    <div class={`screen home ${idle ? 'calm' : ''}`}>
+    <div class="screen home">
       <div class="home-shade" />
-      {walkers && <Strollers />}
+      <Strollers />
       <div class="home-col">
         <Logo class="home-logo" />
         <nav class="home-nav" aria-label="main menu">

@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { useMenu } from './ctx.ts';
 import { CodeInput, Modal } from './ui.tsx';
 import { NetSession, type JoinOutcome } from '../net/netSession.ts';
-import { checkRelays, relayStatus, type RelayStatus } from '../net/mesh.ts';
+import { relayStatus, watchRelays, type RelayStatus } from '../net/mesh.ts';
 import { normalizeRoomCode } from '../net/room.ts';
 import { LanScanner, lanKeys, type LanGame } from '../net/lan.ts';
 import { BotCard, ColorPicker, ControlPicker, PlayerCard, TeamBalance, joinHint, useDeviceChanges, useJoinListener } from './players.tsx';
@@ -109,13 +109,9 @@ export function NetworkGame(props: { enterLobby: (net: NetSession) => void }): J
   }, [status === 'offline']);
 
   // the TURN relays: asked for now (local games ask nothing), checked again on Retry
-  useEffect(() => {
-    let live = true;
-    void checkRelays().then((r) => live && setRelay(r));
-    return () => {
-      live = false;
-    };
-  }, [status === 'offline']);
+  // the relays: checked when the screen opens (and when the meeting service comes back), then every minute
+  // while they do not work, so that the note goes away by itself
+  useEffect(() => watchRelays(setRelay), [status === 'offline']);
 
   useEffect(() => {
     for (const gm of games) if (gm.level >= 0 && !pics[gm.level]) void art.arena(gm.level).then((u) => setPics((p) => ({ ...p, [gm.level]: u })));

@@ -101,6 +101,38 @@ describe('simulation', () => {
   });
 });
 
+describe('ice (the Hockey Rink)', () => {
+  /** How long a person's bomber takes to move after its direction is held (ms), with the ice delay `iceMs`. */
+  function firstMove(iceMs: number): number {
+    const cfg = config(3, 2, 2);
+    cfg.values[452] = iceMs;
+    let best = Infinity;
+    for (const dir of [1, 2, 4, 8]) {
+      const s = createGame(cfg);
+      roundStart(s, cfg.scheme, cfg.extras);
+      const ctx = new FrameCtx(anims);
+      const inputs = new Uint8Array(10);
+      // the first second of a round ignores the inputs
+      while (s.nowMs < 1500) step(s, ctx, inputs);
+      const p = s.players[0];
+      const [x, y, from] = [p.x, p.y, s.nowMs];
+      inputs[0] = dir;
+      while (s.nowMs < from + 1000 && p.x === x && p.y === y) step(s, ctx, inputs);
+      if (p.x !== x || p.y !== y) best = Math.min(best, s.nowMs - from);
+    }
+    return best;
+  }
+
+  it("the original's control delay holds a person's bomber back a quarter of a second; Boom Buds clears it", () => {
+    expect(text.values[452][0]).toBe(250);
+    const late = firstMove(250);
+    const now = firstMove(0);
+    expect(now).toBeLessThan(50);
+    expect(late - now).toBeGreaterThanOrEqual(230);
+    expect(late - now).toBeLessThan(270);
+  });
+});
+
 describe('arena lists', () => {
   it('a random arena is picked among the list, the same way on every machine', () => {
     const pick = (seed: number) => {

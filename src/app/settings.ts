@@ -48,6 +48,8 @@ export interface Settings {
   classicMouse: number;
   /** 1997 ways: the original's minimum waits before the screens between rounds can be left */
   classicWaits: number;
+  /** 1997 ways: the original's control delay on ice (the Hockey Rink) */
+  classicIce: number;
   /** rounds run four times as fast once only computer players are left */
   fastForward: number;
   /** show the frame rate and the delay from a press to a drawn frame (src/app/diag.ts) */
@@ -125,6 +127,7 @@ export function defaultSettings(): Settings {
     classicMenus: 0,
     classicMouse: 0,
     classicWaits: 0,
+    classicIce: 0,
     fastForward: 1,
     diagnostics: 0,
     localLooks: { players: [], bots: [] },

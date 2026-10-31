@@ -105,7 +105,8 @@ edge, trigger bombs), and the computer players exercise every rule in long tourn
   (DNS and TLS), the next ones 130 ms; once, in the smoke test, the first one took longer than 2.5 s and the
   Network Game screen said the relay was unavailable although it worked. A connection still waits 2.5 s at
   most, but the request now goes on for up to 10 s: its answer serves the next connections, and the check
-  waits for it.
+  waits for it. A request that gets nothing in 10 s is not kept: every connection asks again, and an open
+  network screen checks again every minute until the relay works (`tests/ice.test.ts`, relay watch).
 * Relay check (2026-10-30, Chrome, Vite dev server with `VITE_TURN_API`): nothing asks the credentials API until
   Network Game opens. There, with Metered answering, the relay gave an address and no note shows; with the API
   answering 401 or 500, or out of reach, the note says the relay is unavailable within 0.2 s; answering 402 (or
@@ -230,8 +231,8 @@ per frame.
 Menus: the game's frame loop sleeps while they are open, and their animations (sparks on the logo, bombers
 walking along the bottom of the main menu, the "looking for games" pulse) use only transforms and opacity,
 which the compositor runs: the main menu takes 0.2 % of the main thread (Local Game 0 %, Network Game 0.4 %),
-and the compositor's own work (about 5 % renderer and 20 % GPU-process CPU at 165 Hz while something moves)
-stops after 45 s without input, when the bombers leave and the sparks freeze. The audio device is opened
+and the compositor's own work is about 5 % renderer and 20 % GPU-process CPU at 165 Hz. The bombers and the
+sparks keep going however long the main menu is left alone (they used to stop after 45 s). The audio device is opened
 while the page is idle instead of in the first click, so a screen change takes about 30 ms from the click.
 
 Arenas (2026-10-30, 15 s of demo rounds with 4 computer players at skill 3, `?bench=4&level=N&ai=3`): the
@@ -239,6 +240,8 @@ Hockey Rink (level 2) draws like the others, 165 fps, frame time p99 6.2 ms, mai
 Acres 7.1 %, Ancient Egypt 7.5 %). What makes it feel slow is the original's ice: on that arena alone
 (VALUELST 452 = 250 ms) a human player's bomber starts, stops and changes direction 250 ms after the input,
 while it faces the new direction at once; computer players are not delayed (docs/re/extras-levels.md §8.1).
+Since then the ice is only for show outside 1997 mode (docs/DIFFERENCES.md §0b; `tests/sim.test.ts` measures
+the first step after a press: 250 ms later with the original's delay, at once without it).
 
 TV menus (2026-10-30, 720p Google TV emulator): the first press of the remote starts loading the sounds. With
 four `SoundPool` decoders at once and the page decoding every effect as well, the main menu fell from 55-60
